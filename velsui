@@ -33,11 +33,14 @@ local DefaultIcons = {
 
 local FONT = "rbxasset://fonts/families/BuilderSans.json"
 local Medium = Font.new(FONT, Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+local SemiBold = Font.new(FONT, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
 local Bold = Font.new(FONT, Enum.FontWeight.ExtraBold, Enum.FontStyle.Normal)
+local DEFAULT_TEXT_SCALE = 1.035
 
 local function new(className, properties, children)
 	local object = Instance.new(className)
-	if object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox") then
+	local isText = object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox")
+	if isText then
 		object.FontFace = Medium
 	end
 	for key, value in pairs(properties or {}) do
@@ -45,6 +48,14 @@ local function new(className, properties, children)
 	end
 	for _, child in ipairs(children or {}) do
 		child.Parent = object
+	end
+	if isText then
+		object.TextScaled = false
+		object.TextTransparency = 0
+		object.TextStrokeTransparency = 1
+		local baseSize = object.TextSize
+		object:SetAttribute("AuroraBaseTextSize", baseSize)
+		object.TextSize = math.max(12, math.round(baseSize * DEFAULT_TEXT_SCALE))
 	end
 	return object
 end
@@ -252,24 +263,24 @@ function Library:AddWindow(config)
 		BorderSizePixel = 0,
 		Parent = brand,
 	}, { corner(14) })
-	addText(logo, config.LogoText or string.sub(config.Title or config.Name or "A", 1, 1), 22, palette.Text, {
+	addText(logo, config.LogoText or string.sub(config.Title or config.Name or "A", 1, 1), 24, palette.Text, {
 		Size = UDim2.fromScale(1, 1),
 		FontFace = Bold,
 		TextXAlignment = Enum.TextXAlignment.Center,
 	})
-	addText(brand, config.Title or config.Name, 17, palette.Text, {
+	addText(brand, config.Title or config.Name, 18, palette.Text, {
 		Position = UDim2.fromOffset(55, 2),
 		Size = UDim2.new(1, -55, 0, 24),
 		FontFace = Bold,
 	})
-	addText(brand, config.Subtitle or "UI Library", 12, palette.Muted, {
+	addText(brand, config.Subtitle or "UI Library", 13, palette.Muted, {
 		Position = UDim2.fromOffset(55, 27),
 		Size = UDim2.new(1, -55, 0, 18),
 	})
 
 	local tabList = new("Frame", {
-		Position = UDim2.fromOffset(14, 88),
-		Size = UDim2.new(1, -28, 1, config.UserInfo == false and -105 or -181),
+		Position = UDim2.fromOffset(12, 92),
+		Size = UDim2.new(1, -24, 1, config.UserInfo == false and -108 or -184),
 		BackgroundTransparency = 1,
 		Parent = sidebar,
 	}, {
@@ -280,19 +291,20 @@ function Library:AddWindow(config)
 	})
 
 	local content = new("Frame", {
-		Position = UDim2.fromOffset(177, 0),
-		Size = UDim2.new(1, -177, 1, 0),
+		Position = UDim2.fromOffset(190, 0),
+		Size = UDim2.new(1, -190, 1, 0),
 		BackgroundTransparency = 1,
+		ClipsDescendants = true,
 		Parent = frame,
 	})
-	local headerTitle = addText(content, "", 23, palette.Text, {
-		Position = UDim2.fromOffset(26, 22),
-		Size = UDim2.new(1, -150, 0, 30),
+	local headerTitle = addText(content, "", 22, palette.Text, {
+		Position = UDim2.fromOffset(27, 23),
+		Size = UDim2.new(1, -250, 0, 30),
 		FontFace = Bold,
 	})
 	local headerDescription = addText(content, "", 13, palette.Muted, {
-		Position = UDim2.fromOffset(26, 52),
-		Size = UDim2.new(1, -150, 0, 20),
+		Position = UDim2.fromOffset(28, 54),
+		Size = UDim2.new(1, -255, 0, 22),
 	})
 	local pages = new("Frame", {
 		Position = UDim2.fromOffset(26, 92),
@@ -300,6 +312,13 @@ function Library:AddWindow(config)
 		BackgroundTransparency = 1,
 		ClipsDescendants = true,
 		Parent = content,
+	})
+	local overlay = new("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = 50,
+		Parent = screen,
 	})
 
 	local window = setmetatable({
@@ -310,6 +329,7 @@ function Library:AddWindow(config)
 		Sidebar = sidebar,
 		TabList = tabList,
 		PageHolder = pages,
+		Overlay = overlay,
 		HeaderTitle = headerTitle,
 		HeaderDescription = headerDescription,
 		Theme = palette,
@@ -556,9 +576,9 @@ function Library:AddWindow(config)
 		return button
 	end
 
-	local settings = topButton(-100, DefaultIcons.Settings)
-	local minimize = topButton(-58, DefaultIcons.Minus)
-	local close = topButton(-16, DefaultIcons.Close, palette.Danger)
+	local settings = topButton(-106, DefaultIcons.Settings)
+	local minimize = topButton(-62, DefaultIcons.Minus)
+	local close = topButton(-18, DefaultIcons.Close, palette.Danger)
 	settings.MouseButton1Click:Connect(function() window:SelectTab("Settings") end)
 	local searchShell = new("Frame", {
 		AnchorPoint = Vector2.new(1, 0),
@@ -766,24 +786,24 @@ function WindowMethods:AddTab(config)
 	config = normalize(config, "Tab")
 	local palette = self.Theme
 	local button = new("TextButton", {
-		Size = UDim2.new(1, 0, 0, 45),
+		Size = UDim2.new(1, 0, 0, 48),
 		BackgroundColor3 = palette.Sidebar,
 		BorderSizePixel = 0,
 		Text = "",
 		AutoButtonColor = false,
 		Parent = self.TabList,
-	}, { corner(13) })
+	}, { corner(15) })
 	new("ImageLabel", {
-		Position = UDim2.fromOffset(14, 13),
+		Position = UDim2.fromOffset(17, 15),
 		Size = UDim2.fromOffset(18, 18),
 		BackgroundTransparency = 1,
 		Image = config.Icon or DefaultIcons.Tab,
 		ImageColor3 = palette.Muted,
 		Parent = button,
 	})
-	local label = addText(button, config.Name, 15, palette.Muted, {
-		Position = UDim2.fromOffset(42, 0),
-		Size = UDim2.new(1, -48, 1, 0),
+	local label = addText(button, config.Name, 17, palette.Muted, {
+		Position = UDim2.fromOffset(47, 0),
+		Size = UDim2.new(1, -55, 1, 0),
 	})
 	local page = new("Frame", {
 		Name = config.Name,
@@ -795,7 +815,7 @@ function WindowMethods:AddTab(config)
 	local function column(position)
 		return new("ScrollingFrame", {
 			Position = position,
-			Size = UDim2.new(0.5, -6, 1, 0),
+			Size = UDim2.new(0.5, -7, 1, 0),
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
 			ScrollBarThickness = 2,
@@ -806,8 +826,8 @@ function WindowMethods:AddTab(config)
 		}, {
 			new("UIListLayout", { Padding = UDim.new(0, 9), SortOrder = Enum.SortOrder.LayoutOrder }),
 			new("UIPadding", {
-				PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 8),
-				PaddingLeft = UDim.new(0, 3), PaddingRight = UDim.new(0, 5),
+				PaddingTop = UDim.new(0, 10), PaddingBottom = UDim.new(0, 10),
+				PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4),
 			}),
 		})
 	end
@@ -820,7 +840,7 @@ function WindowMethods:AddTab(config)
 		Icon = button:FindFirstChildOfClass("ImageLabel"),
 		Page = page,
 		Left = column(UDim2.new()),
-		Right = column(UDim2.new(0.5, 6, 0, 0)),
+		Right = column(UDim2.new(0.5, 7, 0, 0)),
 		Sections = {},
 	}, { __index = TabMethods })
 	table.insert(self.Tabs, tab)
@@ -1027,7 +1047,14 @@ function WindowMethods:SetFont(path)
 	for _, object in ipairs(self.ScreenGui:GetDescendants()) do
 		if object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox") then
 			pcall(function()
-				object.FontFace = Font.new(path, object.FontFace.Weight, Enum.FontStyle.Normal)
+				local weight = object.FontFace.Weight
+				if path == "INTER" then
+					object.FontFace = (
+						weight == Enum.FontWeight.Bold or weight == Enum.FontWeight.ExtraBold
+					) and SemiBold or Medium
+				else
+					object.FontFace = Font.new(path, weight, Enum.FontStyle.Normal)
+				end
 			end)
 		end
 	end
@@ -1049,18 +1076,18 @@ function TabMethods:AddSection(config)
 	local parent = side == "right" and self.Right or self.Left
 	local palette = self.Window.Theme
 	local holder = new("Frame", {
-		Size = UDim2.new(1, -4, 0, 0),
+		Size = UDim2.new(1, -6, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundColor3 = palette.Panel,
 		BorderSizePixel = 0,
 		LayoutOrder = config.Order or (#self.Sections + 1),
 		Parent = parent,
 	}, {
-		corner(17),
+		corner(19),
 		stroke(palette.Line, 0.42),
 		new("UIPadding", {
-			PaddingTop = UDim.new(0, 13), PaddingBottom = UDim.new(0, 13),
-			PaddingLeft = UDim.new(0, 13), PaddingRight = UDim.new(0, 13),
+			PaddingTop = UDim.new(0, 14), PaddingBottom = UDim.new(0, 14),
+			PaddingLeft = UDim.new(0, 14), PaddingRight = UDim.new(0, 14),
 		}),
 		new("UIListLayout", { Padding = UDim.new(0, 7), SortOrder = Enum.SortOrder.LayoutOrder }),
 	})
@@ -1079,14 +1106,14 @@ function TabMethods:AddSection(config)
 		ImageColor3 = palette.Accent,
 		Parent = sectionHeader,
 	})
-	addText(sectionHeader, config.Name, 17, palette.Text, {
+	addText(sectionHeader, config.Name, 18, palette.Text, {
 		Position = UDim2.fromOffset(27, 0),
 		Size = UDim2.new(1, -27, 1, 0),
 		FontFace = Bold,
 	})
 	local nextOrder = 2
 	if config.Description then
-		addText(holder, config.Description, 12, palette.Muted, {
+		addText(holder, config.Description, 13, palette.Muted, {
 			Size = UDim2.new(1, 0, 0, 0),
 			AutomaticSize = Enum.AutomaticSize.Y,
 			TextWrapped = true,
@@ -1144,12 +1171,12 @@ function SectionMethods:AddButton(config)
 	config = normalize(config, "Button")
 	local palette = self.Window.Theme
 	local button = new("TextButton", {
-		Size = UDim2.new(1, 0, 0, 40),
+		Size = UDim2.new(1, 0, 0, 45),
 		BackgroundColor3 = palette.Sidebar,
 		BorderSizePixel = 0,
 		Text = config.Name,
 		TextColor3 = palette.Text,
-		TextSize = 14,
+		TextSize = 15,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		AutoButtonColor = false,
 		LayoutOrder = config.Order or self:_NextOrder(),
@@ -1202,15 +1229,15 @@ end
 function SectionMethods:AddToggle(config)
 	config = normalize(config, "Toggle")
 	local palette = self.Window.Theme
-	local row = makeControlRow(self, config.Description and 49 or 36, config.Order)
+	local row = makeControlRow(self, 51, config.Order)
 	local textInset = config.Keybind and 94 or 58
-	addText(row, config.Name, 14, palette.Text, {
-		Size = UDim2.new(1, -textInset, 0, 21),
+	addText(row, config.Name, 17, palette.Text, {
+		Size = UDim2.new(1, -textInset, 0, 24),
 	})
 	if config.Description then
-		addText(row, config.Description, 12, palette.Muted, {
-			Position = UDim2.fromOffset(0, 23),
-			Size = UDim2.new(1, -textInset, 0, 19),
+		addText(row, config.Description, 14, palette.Muted, {
+			Position = UDim2.fromOffset(0, 26),
+			Size = UDim2.new(1, -textInset, 0, 20),
 			TextTruncate = Enum.TextTruncate.AtEnd,
 		})
 	end
@@ -1334,72 +1361,165 @@ function SectionMethods:AddToggle(config)
 				tween(gearIcon, 0.15, { ImageColor3 = palette.Muted })
 				tween(gearPop, 0.2, { Scale = 1 })
 			end)
+			local shade = new("TextButton", {
+				Size = UDim2.fromScale(1, 1),
+				BackgroundTransparency = 1,
+				BorderSizePixel = 0,
+				Text = "",
+				AutoButtonColor = false,
+				Visible = false,
+				ZIndex = 59,
+				Parent = self.Window.Overlay,
+			})
 			local popup = new("Frame", {
 				AnchorPoint = Vector2.new(1, 0),
-				Position = UDim2.new(1, -49, 1, 4),
-				Size = UDim2.fromOffset(148, 76),
-				BackgroundColor3 = palette.Sidebar,
+				Size = UDim2.fromOffset(186, 98),
+				BackgroundColor3 = Color3.fromRGB(37, 40, 46),
 				BorderSizePixel = 0,
+				ClipsDescendants = true,
 				Visible = false,
-				ZIndex = 30,
-				Parent = row,
+				ZIndex = 60,
+				Parent = self.Window.Overlay,
 			}, {
-				corner(10),
-				stroke(palette.Line, 0.25),
+				corner(13),
+				stroke(Color3.fromRGB(96, 102, 114), 0.15),
 				new("UIPadding", {
-					PaddingTop = UDim.new(0, 7),
-					PaddingBottom = UDim.new(0, 7),
-					PaddingLeft = UDim.new(0, 7),
-					PaddingRight = UDim.new(0, 7),
+					PaddingTop = UDim.new(0, 10),
+					PaddingBottom = UDim.new(0, 10),
+					PaddingLeft = UDim.new(0, 10),
+					PaddingRight = UDim.new(0, 10),
 				}),
 				new("UIListLayout", {
-					Padding = UDim.new(0, 6),
+					Padding = UDim.new(0, 8),
 					SortOrder = Enum.SortOrder.LayoutOrder,
 				}),
 			})
 			local keyChoice = new("TextButton", {
-				Size = UDim2.new(1, 0, 0, 28),
+				Size = UDim2.new(1, 0, 0, 36),
 				BackgroundColor3 = palette.Control,
 				BorderSizePixel = 0,
 				Text = bind.Key == Enum.KeyCode.Unknown and "None" or bind.Key.Name,
 				TextColor3 = palette.Text,
-				TextSize = 12,
+				TextSize = 14,
 				AutoButtonColor = false,
-				ZIndex = 31,
+				ZIndex = 61,
 				LayoutOrder = 1,
 				Parent = popup,
 			}, { corner(7) })
 			local popupScale = new("UIScale", { Scale = 0, Parent = popup })
 			local modeChoice = new("TextButton", {
-				Size = UDim2.new(1, 0, 0, 28),
+				Size = UDim2.new(1, 0, 0, 34),
 				BackgroundColor3 = palette.Control,
 				BorderSizePixel = 0,
 				Text = bind.Mode,
 				TextColor3 = palette.Muted,
-				TextSize = 12,
+				TextSize = 13,
 				AutoButtonColor = false,
-				ZIndex = 31,
+				ZIndex = 61,
 				LayoutOrder = 2,
 				Parent = popup,
 			}, { corner(7) })
+			local modeOpen = false
+			local function createModeOption(text, order)
+				local option = new("TextButton", {
+					Size = UDim2.new(1, 0, 0, 34),
+					BackgroundColor3 = palette.PanelHover,
+					BackgroundTransparency = 0.4,
+					BorderSizePixel = 0,
+					Text = text,
+					TextColor3 = palette.Muted,
+					TextSize = 13,
+					AutoButtonColor = false,
+					Visible = false,
+					ZIndex = 61,
+					LayoutOrder = order,
+					Parent = popup,
+				}, { corner(7) })
+				option.MouseEnter:Connect(function()
+					tween(option, 0.16, {
+						BackgroundTransparency = 0,
+						BackgroundColor3 = palette.Control,
+						TextColor3 = palette.Text,
+					})
+				end)
+				option.MouseLeave:Connect(function()
+					tween(option, 0.16, {
+						BackgroundTransparency = 0.4,
+						BackgroundColor3 = palette.PanelHover,
+						TextColor3 = palette.Muted,
+					})
+				end)
+				option.MouseButton1Click:Connect(function()
+					bind:SetMode(text)
+					modeOpen = false
+					tween(popup, 0.26, { Size = UDim2.fromOffset(186, 98) }, Enum.EasingStyle.Quint).Completed:Once(function()
+						if not modeOpen then option.Visible = false end
+					end)
+				end)
+				return option
+			end
+			local toggleModeOption = createModeOption("Toggle", 3)
+			local holdModeOption = createModeOption("Hold", 4)
 			bind.DisplayButton = keyChoice
 			bind.ModeButton = modeChoice
 			bind.Popup = popup
 			bind.PopupScale = popupScale
+			bind.PopupShade = shade
 			gear.MouseButton1Click:Connect(function()
 				if popup.Visible then
 					tween(popupScale, 0.2, { Scale = 0 }, Enum.EasingStyle.Quart).Completed:Once(function()
-						if popupScale.Scale == 0 then popup.Visible = false end
+						if popupScale.Scale == 0 then
+							popup.Visible = false
+							shade.Visible = false
+						end
 					end)
 				else
+					local gearPosition = gear.AbsolutePosition
+					modeOpen = false
+					toggleModeOption.Visible = false
+					holdModeOption.Visible = false
+					popup.Size = UDim2.fromOffset(186, 98)
+					local camera = workspace.CurrentCamera
+					local viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
+					local popupX = math.clamp(gearPosition.X + gear.AbsoluteSize.X, 194, viewport.X - 8)
+					local popupY = math.clamp(
+						gearPosition.Y + gear.AbsoluteSize.Y + 6,
+						8,
+						viewport.Y - 190
+					)
+					popup.Position = UDim2.fromOffset(
+						popupX,
+						popupY
+					)
+					shade.Visible = true
 					popup.Visible = true
 					popupScale.Scale = 0
 					tween(popupScale, 0.34, { Scale = 1 }, Enum.EasingStyle.Back)
 				end
 			end)
+			shade.MouseButton1Click:Connect(function()
+				tween(popupScale, 0.2, { Scale = 0 }, Enum.EasingStyle.Quart).Completed:Once(function()
+					if popupScale.Scale == 0 then
+						popup.Visible = false
+						shade.Visible = false
+					end
+				end)
+			end)
 			keyChoice.MouseButton1Click:Connect(function() bind:Listen() end)
 			modeChoice.MouseButton1Click:Connect(function()
-				bind:SetMode(bind.Mode == "Toggle" and "Hold" or "Toggle")
+				modeOpen = not modeOpen
+				if modeOpen then
+					toggleModeOption.Visible = true
+					holdModeOption.Visible = true
+					tween(popup, 0.26, { Size = UDim2.fromOffset(186, 182) }, Enum.EasingStyle.Quint)
+				else
+					tween(popup, 0.26, { Size = UDim2.fromOffset(186, 98) }, Enum.EasingStyle.Quint).Completed:Once(function()
+						if not modeOpen then
+							toggleModeOption.Visible = false
+							holdModeOption.Visible = false
+						end
+					end)
+				end
 			end)
 			self.Gear = gear
 		end
@@ -1424,9 +1544,9 @@ function SectionMethods:AddSlider(config)
 	local minimum, maximum = config.Min or 0, config.Max or 100
 	if maximum <= minimum then maximum = minimum + 1 end
 	local increment = config.Increment or 1
-	local row = makeControlRow(self, 51, config.Order)
-	addText(row, config.Name, 14, palette.Text, { Size = UDim2.new(1, -60, 0, 20) })
-	local valueLabel = addText(row, "", 12, palette.Muted, {
+	local row = makeControlRow(self, 52, config.Order)
+	addText(row, config.Name, 15, palette.Text, { Size = UDim2.new(1, -60, 0, 22) })
+	local valueLabel = addText(row, "", 13, palette.Muted, {
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.fromScale(1, 0),
 		Size = UDim2.fromOffset(56, 20),
@@ -1543,12 +1663,12 @@ function SectionMethods:AddDropdown(config)
 	config = normalize(config, "Dropdown")
 	local palette = self.Window.Theme
 	local options = config.Options or {}
-	local row = makeControlRow(self, 61, config.Order)
-	addText(row, config.Name, 13, palette.Text, { Size = UDim2.new(1, 0, 0, 20) })
+	local row = makeControlRow(self, 70, config.Order)
+	addText(row, config.Name, 15, palette.Text, { Size = UDim2.new(1, 0, 0, 22) })
 	local selected = new("TextButton", {
-		Position = UDim2.fromOffset(0, 24),
-		Size = UDim2.new(1, 0, 0, 34),
-		BackgroundColor3 = palette.Control,
+		Position = UDim2.fromOffset(0, 26),
+		Size = UDim2.new(1, 0, 0, 43),
+		BackgroundColor3 = palette.Sidebar,
 		BorderSizePixel = 0,
 		Text = "",
 		TextColor3 = palette.Text,
@@ -1556,34 +1676,65 @@ function SectionMethods:AddDropdown(config)
 		TextXAlignment = Enum.TextXAlignment.Left,
 		AutoButtonColor = false,
 		Parent = row,
-	}, { corner(9), stroke(palette.Line, 0.4) })
-	addPadding(selected, 0, 0, 10, 28)
-	addText(selected, "⌄", 16, palette.Muted, {
+	}, { corner(11), stroke(palette.Line, 0.18) })
+	local selectedLabel = addText(selected, "", 14, palette.Text, {
+		Position = UDim2.fromOffset(10, 0),
+		Size = UDim2.new(1, -38, 1, 0),
+		TextTruncate = Enum.TextTruncate.AtEnd,
+	})
+	local dropdownArrow = addText(selected, "⌄", 16, palette.Muted, {
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, 20, 0, 0),
-		Size = UDim2.fromOffset(20, 34),
+		Position = UDim2.new(1, -8, 0, 0),
+		Size = UDim2.fromOffset(20, 43),
 		TextXAlignment = Enum.TextXAlignment.Center,
 	})
+	local dropdownShade = new("TextButton", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Text = "",
+		AutoButtonColor = false,
+		Visible = false,
+		ZIndex = 54,
+		Parent = self.Window.Overlay,
+	})
 	local menu = new("Frame", {
-		Position = UDim2.new(0, 0, 1, 4),
-		Size = UDim2.new(1, 0, 0, 0),
+		Size = UDim2.fromOffset(0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundColor3 = palette.Sidebar,
 		BorderSizePixel = 0,
 		Visible = false,
-		ZIndex = 20,
-		Parent = selected,
+		ZIndex = 55,
+		Parent = self.Window.Overlay,
 	}, {
 		corner(9), stroke(palette.Line, 0.2),
-		new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder }),
+		new("UIListLayout", {
+			Padding = UDim.new(0, 4),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+		new("UIPadding", {
+			PaddingTop = UDim.new(0, 8),
+			PaddingBottom = UDim.new(0, 8),
+			PaddingLeft = UDim.new(0, 8),
+			PaddingRight = UDim.new(0, 8),
+		}),
 	})
+	local menuScale = new("UIScale", { Scale = 0, Parent = menu })
 	local value
 	self.Window:_RegisterSearch(config.Name, row)
 	local control = {}
 	function control:Set(option, silent)
 		value = option
-		selected.Text = tostring(option or config.Placeholder or "Select...")
-		menu.Visible = false
+		selectedLabel.Text = tostring(option or config.Placeholder or "Select...")
+		dropdownArrow.Rotation = 0
+		if menu.Visible then
+			tween(menuScale, 0.18, { Scale = 0 }, Enum.EasingStyle.Quart).Completed:Once(function()
+				if menuScale.Scale == 0 then
+					menu.Visible = false
+					dropdownShade.Visible = false
+				end
+			end)
+		end
 		if not silent then invoke(config.Callback, value) end
 	end
 	function control:Get() return value end
@@ -1595,28 +1746,95 @@ function SectionMethods:AddDropdown(config)
 		for index, option in ipairs(options) do
 			local optionValue = option
 			local optionButton = new("TextButton", {
-				Size = UDim2.new(1, 0, 0, 31),
-				BackgroundColor3 = palette.Sidebar,
+				Size = UDim2.new(1, 0, 0, 34),
+				BackgroundColor3 = palette.PanelHover,
+				BackgroundTransparency = 0.4,
 				BorderSizePixel = 0,
-				Text = tostring(optionValue),
-				TextColor3 = palette.Muted,
-				TextSize = 12,
+				Text = "",
 				AutoButtonColor = false,
 				LayoutOrder = index,
-				ZIndex = 21,
+				ZIndex = 56,
 				Parent = menu,
+			}, { corner(9) })
+			local accentBar = new("Frame", {
+				AnchorPoint = Vector2.new(0, 0.5),
+				Position = UDim2.new(0, 6, 0.5, 0),
+				Size = UDim2.fromOffset(3, 0),
+				BackgroundColor3 = palette.Accent,
+				BorderSizePixel = 0,
+				ZIndex = 57,
+				Parent = optionButton,
+			}, { corner(2) })
+			local optionLabel = addText(optionButton, tostring(optionValue), 14, palette.Muted, {
+				Position = UDim2.fromOffset(16, 0),
+				Size = UDim2.new(1, -28, 1, 0),
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				ZIndex = 57,
 			})
-			optionButton.MouseButton1Click:Connect(function() control:Set(optionValue) end)
+			optionButton.MouseButton1Click:Connect(function()
+				haptic(0.12)
+				control:Set(optionValue)
+			end)
 			optionButton.MouseEnter:Connect(function()
-				tween(optionButton, 0.12, { BackgroundColor3 = palette.Control, TextColor3 = palette.Text })
+				tween(optionButton, 0.16, {
+					BackgroundTransparency = 0,
+					BackgroundColor3 = palette.Control,
+				})
+				tween(optionLabel, 0.16, { TextColor3 = palette.Text })
+				tween(accentBar, 0.2, { Size = UDim2.fromOffset(3, 18) }, Enum.EasingStyle.Back)
 			end)
 			optionButton.MouseLeave:Connect(function()
-				tween(optionButton, 0.12, { BackgroundColor3 = palette.Sidebar, TextColor3 = palette.Muted })
+				tween(optionButton, 0.16, {
+					BackgroundTransparency = 0.4,
+					BackgroundColor3 = palette.PanelHover,
+				})
+				tween(optionLabel, 0.16, { TextColor3 = palette.Muted })
+				tween(accentBar, 0.16, { Size = UDim2.fromOffset(3, 0) })
 			end)
 		end
 	end
-	function control:Destroy() row:Destroy() end
-	selected.MouseButton1Click:Connect(function() menu.Visible = not menu.Visible end)
+	function control:Destroy()
+		row:Destroy()
+		menu:Destroy()
+		dropdownShade:Destroy()
+	end
+	selected.MouseButton1Click:Connect(function()
+		local opening = not menu.Visible
+		if opening then
+			local position = selected.AbsolutePosition
+			local estimatedHeight = 16 + #options * 34 + math.max(0, #options - 1) * 4
+			local camera = workspace.CurrentCamera
+			local viewportHeight = camera and camera.ViewportSize.Y or 1080
+			local menuY = position.Y + selected.AbsoluteSize.Y + 4
+			if menuY + estimatedHeight > viewportHeight - 8 then
+				menuY = math.max(8, position.Y - estimatedHeight - 4)
+			end
+			menu.Position = UDim2.fromOffset(position.X, menuY)
+			menu.Size = UDim2.fromOffset(selected.AbsoluteSize.X, 0)
+			dropdownShade.Visible = true
+			menu.Visible = true
+			menuScale.Scale = 0
+			tween(dropdownArrow, 0.24, { Rotation = 180 })
+			tween(menuScale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+		else
+			tween(dropdownArrow, 0.22, { Rotation = 0 })
+			tween(menuScale, 0.18, { Scale = 0 }, Enum.EasingStyle.Quart).Completed:Once(function()
+				if menuScale.Scale == 0 then
+					menu.Visible = false
+					dropdownShade.Visible = false
+				end
+			end)
+		end
+	end)
+	dropdownShade.MouseButton1Click:Connect(function()
+		tween(dropdownArrow, 0.22, { Rotation = 0 })
+		tween(menuScale, 0.18, { Scale = 0 }, Enum.EasingStyle.Quart).Completed:Once(function()
+			if menuScale.Scale == 0 then
+				menu.Visible = false
+				dropdownShade.Visible = false
+			end
+		end)
+	end)
 	control:Refresh(options)
 	control:Set(config.Default or options[1], true)
 	return control
@@ -1689,6 +1907,8 @@ function SectionMethods:AddKeybind(config)
 	end
 	function bind:Destroy()
 		row:Destroy()
+		if self.Popup then self.Popup:Destroy() end
+		if self.PopupShade then self.PopupShade:Destroy() end
 		for index, item in ipairs(self.Window.Keybinds) do
 			if item == self then table.remove(self.Window.Keybinds, index) break end
 		end
@@ -1709,6 +1929,7 @@ function SectionMethods:AddKeybind(config)
 			if bind.PopupScale then
 				tween(bind.PopupScale, 0.2, { Scale = 0 }, Enum.EasingStyle.Quart).Completed:Once(function()
 					if bind.Popup then bind.Popup.Visible = false end
+					if bind.PopupShade then bind.PopupShade.Visible = false end
 				end)
 			else
 				bind.Popup.Visible = false
