@@ -109,7 +109,7 @@ function VelUI:CreateWindow(opts)
 	end
 
 	local textObjects = {}
-	local currentScale = opts.TextScale or 1
+	local currentScale = opts.TextScale or (0.825 + 60 * 0.0035)
 	local currentFontPath = nil
 	local accentListeners = {}
 	local keybinds = {}
@@ -1441,53 +1441,15 @@ function VelUI:CreateWindow(opts)
 			Image = "",
 			Parent = playerCard,
 		}, { corner(15) })
-
-		local blurGroup = create("Frame", {
-			Position = UDim2.fromOffset(9, 9),
-			Size = UDim2.fromOffset(46, 46),
-			BackgroundTransparency = 1,
-			ClipsDescendants = true,
-			Visible = false,
-			ZIndex = 3,
-			Parent = playerCard,
-		}, { corner(15) })
-		local blurLayers = {}
-		local BLUR_SAMPLES = 40
-		local BLUR_RADIUS = 6
-		for i = 1, BLUR_SAMPLES do
-			local angle = i * 2.399963
-			local dist = BLUR_RADIUS * math.sqrt(i / BLUR_SAMPLES)
-			blurLayers[i] = create("ImageLabel", {
-				AnchorPoint = Vector2.new(0.5, 0.5),
-				Position = UDim2.new(0.5, math.cos(angle) * dist, 0.5, math.sin(angle) * dist),
-				Size = UDim2.fromOffset(64, 64),
-				BackgroundTransparency = 1,
-				Image = "",
-				ImageTransparency = 1,
-				ZIndex = 3,
-				Parent = blurGroup,
-			})
-		end
-		local frost = create("Frame", {
-			Size = UDim2.fromScale(1, 1),
-			BackgroundColor3 = Color3.fromRGB(58, 62, 70),
-			BackgroundTransparency = 1,
-			BorderSizePixel = 0,
-			ZIndex = 4,
-			Parent = blurGroup,
-		})
 		task.spawn(function()
 			local ok, image = pcall(function()
 				return Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
 			end)
-			if ok and image then
-				avatar.Image = image
-				for _, layer in ipairs(blurLayers) do layer.Image = image end
-			end
+			if ok and image then avatar.Image = image end
 		end)
-		local username = create("TextLabel", {
+		create("TextLabel", {
 			Position = UDim2.fromOffset(64, 10),
-			Size = UDim2.new(1, -101, 0, 24),
+			Size = UDim2.new(1, -80, 0, 24),
 			BackgroundTransparency = 1,
 			Text = player.DisplayName,
 			TextColor3 = C.Text,
@@ -1499,7 +1461,7 @@ function VelUI:CreateWindow(opts)
 		})
 		create("TextLabel", {
 			Position = UDim2.fromOffset(64, 33),
-			Size = UDim2.new(1, -101, 0, 18),
+			Size = UDim2.new(1, -80, 0, 18),
 			BackgroundTransparency = 1,
 			Text = opts.PlayerTag or "PREMIUM",
 			TextColor3 = C.Muted,
@@ -1508,54 +1470,6 @@ function VelUI:CreateWindow(opts)
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Parent = playerCard,
 		})
-		local privacy = create("TextButton", {
-			AnchorPoint = Vector2.new(1, 0),
-			Position = UDim2.new(1, -8, 0, 8),
-			Size = UDim2.fromOffset(28, 28),
-			BackgroundColor3 = C.Control,
-			BackgroundTransparency = 0,
-			Text = "",
-			AutoButtonColor = false,
-			Parent = playerCard,
-		}, { corner(9), stroke(C.Line) })
-		local privacyIcon = create("ImageLabel", {
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromOffset(15, 15),
-			BackgroundTransparency = 1,
-			Image = Icons.Eye,
-			ImageColor3 = C.Muted,
-			Parent = privacy,
-		})
-		local privacyPop = create("UIScale", { Scale = 1, Parent = privacy })
-		privacy.MouseEnter:Connect(function()
-			tween(privacyPop, 0.18, { Scale = 1.09 }, Enum.EasingStyle.Back)
-			tween(privacyIcon, 0.16, { ImageColor3 = C.Text })
-		end)
-		privacy.MouseLeave:Connect(function()
-			tween(privacyPop, 0.18, { Scale = 1 })
-			tween(privacyIcon, 0.16, { ImageColor3 = C.Muted })
-		end)
-		local usernameHidden = false
-		privacy.MouseButton1Click:Connect(function()
-			haptic(0.12)
-			usernameHidden = not usernameHidden
-			username.Text = usernameHidden and "Hidden user" or player.DisplayName
-			privacyIcon.Image = usernameHidden and Icons.EyeOff or Icons.Eye
-			if usernameHidden then
-				blurGroup.Visible = true
-				tween(avatar, 0.24, { ImageTransparency = 1 })
-				for _, layer in ipairs(blurLayers) do tween(layer, 0.26, { ImageTransparency = 0.9 }) end
-				tween(frost, 0.26, { BackgroundTransparency = 0.6 })
-			else
-				tween(avatar, 0.24, { ImageTransparency = 0 })
-				for _, layer in ipairs(blurLayers) do tween(layer, 0.2, { ImageTransparency = 1 }) end
-				tween(frost, 0.2, { BackgroundTransparency = 1 })
-				task.delay(0.2, function()
-					if not usernameHidden then blurGroup.Visible = false end
-				end)
-			end
-		end)
 	end
 
 	if opts.Search ~= false then
