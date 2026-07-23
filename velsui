@@ -239,10 +239,18 @@ function VelUI:CreateWindow(opts)
 		end
 		return nil
 	end
-	local logoImage = opts.LogoImage and assetUrl(opts.LogoImage) or nil
+	local logoImage
+	if opts.LogoImage == nil then
+		logoImage = "rbxassetid://101581344392684"
+	elseif opts.LogoImage == false then
+		logoImage = nil
+	else
+		logoImage = assetUrl(opts.LogoImage)
+	end
 	local logoBox = create("Frame", {
 		Size = UDim2.fromOffset(44, 44),
 		BackgroundColor3 = C.Accent,
+		BackgroundTransparency = logoImage and 1 or 0,
 		BorderSizePixel = 0,
 		Parent = brand,
 	}, { corner(14) })
