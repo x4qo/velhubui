@@ -242,7 +242,10 @@ function VelUI:CreateWindow(opts)
 	local logoCandidates
 	if opts.LogoImage == nil then
 		logoCandidates = {
-			"rbxthumb://type=Asset&id=99465770859384&w=420&h=420",
+			"rbxassetid://99465770859384",
+			"rbxassetid://140646434534365",
+			"rbxassetid://101581344392684",
+			"rbxassetid://117795724808911",
 		}
 	elseif opts.LogoImage == false then
 		logoCandidates = nil
