@@ -290,7 +290,7 @@ function VelUI:CreateWindow(opts)
 		Position = UDim2.fromOffset(55, 2),
 		Size = UDim2.new(1, -55, 0, 24),
 		BackgroundTransparency = 1,
-		Text = opts.Title or "Vampire Legends 2",
+		Text = opts.Title or "TVL2",
 		TextColor3 = C.Text,
 		TextSize = 18,
 		FontFace = Bold,
