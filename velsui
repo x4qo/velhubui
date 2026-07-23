@@ -263,33 +263,75 @@ function Library:AddWindow(config)
 		Connections = {},
 		Keybinds = {},
 		Open = true,
-		ToggleKey = config.ToggleKey or Enum.KeyCode.RightShift,
+		ToggleKey = config.ToggleKey or Enum.KeyCode.K,
 	}, { __index = WindowMethods })
 
-	local function topButton(offset, text, hover)
+	local dock = new("Frame", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -14, 0.5, 0),
+		Size = UDim2.fromOffset(0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = palette.Sidebar,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		Visible = false,
+		Parent = backdrop,
+	}, {
+		corner(26),
+		stroke(palette.Line, 0.22),
+		new("UIListLayout", {
+			HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			Padding = UDim.new(0, 8),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+		new("UIPadding", {
+			PaddingTop = UDim.new(0, 9),
+			PaddingBottom = UDim.new(0, 9),
+			PaddingLeft = UDim.new(0, 8),
+			PaddingRight = UDim.new(0, 8),
+		}),
+	})
+	window.Dock = dock
+	window.Backdrop = backdrop
+	window.OriginalPosition = frame.Position
+
+	local function topButton(offset, asset, hover)
 		local button = new("TextButton", {
 			AnchorPoint = Vector2.new(1, 0),
 			Position = UDim2.new(1, offset, 0, 20),
 			Size = UDim2.fromOffset(36, 36),
 			BackgroundColor3 = palette.Control,
 			BorderSizePixel = 0,
-			Text = text,
-			TextColor3 = palette.Muted,
-			TextSize = 19,
+			Text = "",
 			AutoButtonColor = false,
 			Parent = content,
-		}, { corner(11) })
+		}, {
+			corner(11),
+			new("ImageLabel", {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5, 0.5),
+				Size = UDim2.fromOffset(17, 17),
+				BackgroundTransparency = 1,
+				Image = asset,
+				ImageColor3 = palette.Muted,
+			}),
+		})
+		local icon = button:FindFirstChildOfClass("ImageLabel")
 		button.MouseEnter:Connect(function()
-			tween(button, 0.15, { BackgroundColor3 = hover or palette.PanelHover, TextColor3 = palette.Text })
+			tween(button, 0.15, { BackgroundColor3 = hover or palette.PanelHover })
+			tween(icon, 0.15, { ImageColor3 = palette.Text })
 		end)
 		button.MouseLeave:Connect(function()
-			tween(button, 0.15, { BackgroundColor3 = palette.Control, TextColor3 = palette.Muted })
+			tween(button, 0.15, { BackgroundColor3 = palette.Control })
+			tween(icon, 0.15, { ImageColor3 = palette.Muted })
 		end)
 		return button
 	end
 
-	local minimize = topButton(-58, "−")
-	local close = topButton(-16, "×", palette.Danger)
+	local settings = topButton(-100, DefaultIcons.Settings)
+	local minimize = topButton(-58, DefaultIcons.Minus)
+	local close = topButton(-16, DefaultIcons.Close, palette.Danger)
+	settings.MouseButton1Click:Connect(function() window:SelectTab("Settings") end)
 	minimize.MouseButton1Click:Connect(function() window:Toggle() end)
 	close.MouseButton1Click:Connect(function()
 		if config.CloseDestroys then window:Destroy() else window:Toggle(false) end
@@ -397,6 +439,40 @@ function WindowMethods:AddTab(config)
 		Sections = {},
 	}, { __index = TabMethods })
 	table.insert(self.Tabs, tab)
+	local dockButton = new("TextButton", {
+		Size = UDim2.fromOffset(40, 40),
+		BackgroundColor3 = palette.Control,
+		BorderSizePixel = 0,
+		Text = "",
+		AutoButtonColor = false,
+		LayoutOrder = #self.Tabs,
+		Parent = self.Dock,
+	}, {
+		corner(13),
+		stroke(palette.Line, 0.4),
+		new("ImageLabel", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(18, 18),
+			BackgroundTransparency = 1,
+			Image = config.Icon or DefaultIcons.Tab,
+			ImageColor3 = palette.Muted,
+		}),
+	})
+	tab.DockButton = dockButton
+	local dockIcon = dockButton:FindFirstChildOfClass("ImageLabel")
+	dockButton.MouseEnter:Connect(function()
+		tween(dockButton, 0.15, { BackgroundColor3 = palette.PanelHover })
+		tween(dockIcon, 0.15, { ImageColor3 = palette.Accent })
+	end)
+	dockButton.MouseLeave:Connect(function()
+		tween(dockButton, 0.15, { BackgroundColor3 = palette.Control })
+		tween(dockIcon, 0.15, { ImageColor3 = palette.Muted })
+	end)
+	dockButton.MouseButton1Click:Connect(function()
+		self:Toggle(true)
+		self:SelectTab(tab)
+	end)
 	button.MouseButton1Click:Connect(function() self:SelectTab(tab) end)
 	if #self.Tabs == 1 or config.Selected then self:SelectTab(tab) end
 	return tab
@@ -429,13 +505,25 @@ function WindowMethods:Toggle(value)
 	if value == nil then value = not self.Open end
 	self.Open = value
 	if value then
-		self.ScreenGui.Enabled = true
+		self.Frame.Visible = true
+		self.Dock.Visible = true
+		tween(self.Dock, 0.16, { Size = UDim2.fromOffset(0, 0) }).Completed:Once(function()
+			if self.Open and self.Dock.Parent then self.Dock.Visible = false end
+		end)
+		self.Frame.Position = UDim2.new(1, -42, 0.5, 0)
 		self.Scale.Scale = 0.92
+		tween(self.Backdrop, 0.24, { BackgroundTransparency = 0.88 })
+		tween(self.Frame, 0.3, { Position = self.OriginalPosition })
 		tween(self.Scale, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
 	else
-		tween(self.Scale, 0.16, { Scale = 0.92 }).Completed:Once(function()
-			if not self.Open and self.ScreenGui.Parent then self.ScreenGui.Enabled = false end
+		tween(self.Backdrop, 0.2, { BackgroundTransparency = 1 })
+		tween(self.Scale, 0.2, { Scale = 0.08 })
+		tween(self.Frame, 0.24, { Position = UDim2.new(1, -42, 0.5, 0) }).Completed:Once(function()
+			if not self.Open and self.Frame.Parent then self.Frame.Visible = false end
 		end)
+		self.Dock.Visible = true
+		self.Dock.Size = UDim2.fromOffset(20, 40)
+		tween(self.Dock, 0.3, { Size = UDim2.fromOffset(56, 0) }, Enum.EasingStyle.Back)
 	end
 end
 
@@ -563,13 +651,14 @@ function SectionMethods:AddToggle(config)
 	config = normalize(config, "Toggle")
 	local palette = self.Window.Theme
 	local row = makeControlRow(self, config.Description and 49 or 36, config.Order)
+	local textInset = config.Keybind and 94 or 58
 	addText(row, config.Name, 14, palette.Text, {
-		Size = UDim2.new(1, -58, 0, 21),
+		Size = UDim2.new(1, -textInset, 0, 21),
 	})
 	if config.Description then
 		addText(row, config.Description, 12, palette.Muted, {
 			Position = UDim2.fromOffset(0, 23),
-			Size = UDim2.new(1, -58, 0, 19),
+			Size = UDim2.new(1, -textInset, 0, 19),
 			TextTruncate = Enum.TextTruncate.AtEnd,
 		})
 	end
@@ -608,10 +697,102 @@ function SectionMethods:AddToggle(config)
 	function control:AddKeybind(bindConfig)
 		bindConfig = bindConfig or {}
 		bindConfig.Name = bindConfig.Name or config.Name
+		bindConfig.Hidden = true
 		bindConfig.Callback = bindConfig.Callback or function(active)
 			if (bindConfig.Mode or "Toggle") == "Hold" then control:Set(active) else control:Toggle() end
 		end
-		return self.Section:AddKeybind(bindConfig)
+		local bind = self.Section:AddKeybind(bindConfig)
+		if not self.Gear then
+			local gear = new("TextButton", {
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -53, 0.5, 0),
+				Size = UDim2.fromOffset(29, 29),
+				BackgroundColor3 = palette.Control,
+				BorderSizePixel = 0,
+				Text = "",
+				AutoButtonColor = false,
+				Parent = row,
+			}, {
+				corner(8),
+				stroke(palette.Line, 0.4),
+				new("ImageLabel", {
+					AnchorPoint = Vector2.new(0.5, 0.5),
+					Position = UDim2.fromScale(0.5, 0.5),
+					Size = UDim2.fromOffset(15, 15),
+					BackgroundTransparency = 1,
+					Image = DefaultIcons.Settings,
+					ImageColor3 = palette.Muted,
+				}),
+			})
+			local gearIcon = gear:FindFirstChildOfClass("ImageLabel")
+			gear.MouseEnter:Connect(function()
+				tween(gear, 0.15, { BackgroundColor3 = palette.PanelHover })
+				tween(gearIcon, 0.15, { ImageColor3 = palette.Accent })
+			end)
+			gear.MouseLeave:Connect(function()
+				tween(gear, 0.15, { BackgroundColor3 = palette.Control })
+				tween(gearIcon, 0.15, { ImageColor3 = palette.Muted })
+			end)
+			local popup = new("Frame", {
+				AnchorPoint = Vector2.new(1, 0),
+				Position = UDim2.new(1, -49, 1, 4),
+				Size = UDim2.fromOffset(148, 76),
+				BackgroundColor3 = palette.Sidebar,
+				BorderSizePixel = 0,
+				Visible = false,
+				ZIndex = 30,
+				Parent = row,
+			}, {
+				corner(10),
+				stroke(palette.Line, 0.25),
+				new("UIPadding", {
+					PaddingTop = UDim.new(0, 7),
+					PaddingBottom = UDim.new(0, 7),
+					PaddingLeft = UDim.new(0, 7),
+					PaddingRight = UDim.new(0, 7),
+				}),
+				new("UIListLayout", {
+					Padding = UDim.new(0, 6),
+					SortOrder = Enum.SortOrder.LayoutOrder,
+				}),
+			})
+			local keyChoice = new("TextButton", {
+				Size = UDim2.new(1, 0, 0, 28),
+				BackgroundColor3 = palette.Control,
+				BorderSizePixel = 0,
+				Text = bind.Key == Enum.KeyCode.Unknown and "None" or bind.Key.Name,
+				TextColor3 = palette.Text,
+				TextSize = 12,
+				AutoButtonColor = false,
+				ZIndex = 31,
+				LayoutOrder = 1,
+				Parent = popup,
+			}, { corner(7) })
+			local modeChoice = new("TextButton", {
+				Size = UDim2.new(1, 0, 0, 28),
+				BackgroundColor3 = palette.Control,
+				BorderSizePixel = 0,
+				Text = bind.Mode,
+				TextColor3 = palette.Muted,
+				TextSize = 12,
+				AutoButtonColor = false,
+				ZIndex = 31,
+				LayoutOrder = 2,
+				Parent = popup,
+			}, { corner(7) })
+			bind.DisplayButton = keyChoice
+			bind.ModeButton = modeChoice
+			bind.Popup = popup
+			gear.MouseButton1Click:Connect(function()
+				popup.Visible = not popup.Visible
+			end)
+			keyChoice.MouseButton1Click:Connect(function() bind:Listen() end)
+			modeChoice.MouseButton1Click:Connect(function()
+				bind:SetMode(bind.Mode == "Toggle" and "Hold" or "Toggle")
+			end)
+			self.Gear = gear
+		end
+		return bind
 	end
 	control.Section = self
 	value = not value
@@ -809,7 +990,8 @@ end
 function SectionMethods:AddKeybind(config)
 	config = normalize(config, "Keybind")
 	local palette = self.Window.Theme
-	local row = makeControlRow(self, 39, config.Order)
+	local row = makeControlRow(self, config.Hidden and 0 or 39, config.Order)
+	row.Visible = not config.Hidden
 	addText(row, config.Name, 14, palette.Text, { Size = UDim2.new(1, -100, 1, 0) })
 	local button = new("TextButton", {
 		AnchorPoint = Vector2.new(1, 0.5),
@@ -833,14 +1015,22 @@ function SectionMethods:AddKeybind(config)
 	function bind:Set(key)
 		if typeof(key) ~= "EnumItem" or key.EnumType ~= Enum.KeyCode then return false end
 		self.Key = key
-		button.Text = key == Enum.KeyCode.Unknown and "None" or key.Name
+		local text = key == Enum.KeyCode.Unknown and "None" or key.Name
+		button.Text = text
+		if self.DisplayButton then self.DisplayButton.Text = text end
 		return true
 	end
 	function bind:Get() return self.Key end
 	function bind:SetMode(mode)
 		if mode ~= "Toggle" and mode ~= "Hold" then return false end
 		self.Mode = mode
+		if self.ModeButton then self.ModeButton.Text = mode end
 		return true
+	end
+	function bind:Listen()
+		self.Listening = true
+		button.Text = "Press a key..."
+		if self.DisplayButton then self.DisplayButton.Text = "Press a key..." end
 	end
 	function bind:_Pressed()
 		if self.Listening then return end
@@ -864,10 +1054,7 @@ function SectionMethods:AddKeybind(config)
 		end
 	end
 	bind.Window = self.Window
-	button.MouseButton1Click:Connect(function()
-		bind.Listening = true
-		button.Text = "Press a key..."
-	end)
+	button.MouseButton1Click:Connect(function() bind:Listen() end)
 	local capture
 	capture = UserInputService.InputBegan:Connect(function(input)
 		if not bind.Listening or input.UserInputType ~= Enum.UserInputType.Keyboard then return end
@@ -877,6 +1064,7 @@ function SectionMethods:AddKeybind(config)
 		else
 			bind:Set(input.KeyCode)
 		end
+		if bind.Popup then bind.Popup.Visible = false end
 	end)
 	row.Destroying:Connect(function() capture:Disconnect() end)
 	table.insert(self.Window.Keybinds, bind)
