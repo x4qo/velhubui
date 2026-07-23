@@ -421,31 +421,6 @@ function VelUI:CreateWindow(opts)
 		end
 	end
 
-	local contentTargets = setmetatable({}, { __mode = "k" })
-	local contentHidden = false
-	local function setContentHidden(root, hide, duration)
-		if hide then
-			if contentHidden then return end
-			contentHidden = true
-			contentTargets = setmetatable({}, { __mode = "k" })
-			for _, obj in ipairs(root:GetDescendants()) do
-				local props = fadeProps[obj.ClassName]
-				if props then
-					local t, goal = {}, {}
-					for _, p in ipairs(props) do t[p] = obj[p]; goal[p] = 1 end
-					contentTargets[obj] = t
-					tween(obj, duration, goal, Enum.EasingStyle.Sine)
-				end
-			end
-		else
-			if not contentHidden then return end
-			contentHidden = false
-			for obj, t in pairs(contentTargets) do
-				if obj.Parent then tween(obj, duration, t, Enum.EasingStyle.Sine) end
-			end
-		end
-	end
-
 	local refreshKeybindHud
 
 	local function selectPage(name)
@@ -1732,8 +1707,8 @@ function VelUI:CreateWindow(opts)
 	end
 
 	local reopenDock = create("Frame", {
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 14, 0.5, 0),
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -14, 0.5, 0),
 		Size = UDim2.fromOffset(0, 0),
 		BackgroundColor3 = C.Sidebar,
 		BorderSizePixel = 0,
@@ -1798,7 +1773,7 @@ function VelUI:CreateWindow(opts)
 	end
 
 	local DOCK_ROW = 48
-	local dockCentre = UDim2.new(0, 14 + 28, 0.5, 0)
+	local dockCentre = UDim2.new(1, -14 - 28, 0.5, 0)
 	local centre = UDim2.fromScale(0.5, 0.5)
 	local function dockFullSize()
 		return UDim2.fromOffset(56, math.max(1, dockCount) * DOCK_ROW + 10)
@@ -1818,10 +1793,8 @@ function VelUI:CreateWindow(opts)
 			tween(backdrop, 0.34, { BackgroundTransparency = 0.88 })
 			tween(windowScale, 0.44, { Scale = 1 }, Enum.EasingStyle.Back)
 			tween(window, 0.44, { Position = centre }, Enum.EasingStyle.Quint)
-			setContentHidden(content, false, 0.4)
 		else
 			tween(backdrop, 0.32, { BackgroundTransparency = 1 })
-			setContentHidden(content, true, 0.16)
 			tween(windowScale, 0.3, { Scale = 0.05 }, Enum.EasingStyle.Quint)
 			tween(window, 0.3, { Position = dockCentre }, Enum.EasingStyle.Quint).Completed:Once(function()
 				if not isMenuOpen then
@@ -1831,7 +1804,7 @@ function VelUI:CreateWindow(opts)
 				end
 			end)
 			reopenDock.Visible = true
-			reopenDock.Size = UDim2.fromOffset(24, 54)
+			reopenDock.Size = UDim2.fromOffset(20, 40)
 			tween(reopenDock, 0.36, { Size = dockFullSize() }, Enum.EasingStyle.Back)
 		end
 	end
