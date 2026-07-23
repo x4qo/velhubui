@@ -239,18 +239,13 @@ function VelUI:CreateWindow(opts)
 		end
 		return nil
 	end
-	local logoCandidates
+	local logoImage
 	if opts.LogoImage == nil then
-		logoCandidates = {
-			"rbxassetid://99465770859384",
-			"rbxassetid://140646434534365",
-			"rbxassetid://101581344392684",
-			"rbxassetid://117795724808911",
-		}
+		logoImage = "rbxassetid://99465770859384"
 	elseif opts.LogoImage == false then
-		logoCandidates = nil
+		logoImage = nil
 	else
-		logoCandidates = { assetUrl(opts.LogoImage) }
+		logoImage = assetUrl(opts.LogoImage)
 	end
 	local logoBox = create("Frame", {
 		Size = UDim2.fromOffset(44, 44),
@@ -258,23 +253,15 @@ function VelUI:CreateWindow(opts)
 		BorderSizePixel = 0,
 		Parent = brand,
 	}, { corner(14) })
-	if logoCandidates then
-		local logoIcon = create("ImageLabel", {
+	if logoImage then
+		create("ImageLabel", {
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
 			Size = UDim2.fromScale(1, 1),
 			BackgroundTransparency = 1,
-			Image = "",
+			Image = logoImage,
 			Parent = logoBox,
 		}, { corner(14) })
-		task.spawn(function()
-			local cp = game:GetService("ContentProvider")
-			for _, url in ipairs(logoCandidates) do
-				logoIcon.Image = url
-				pcall(function() cp:PreloadAsync({ logoIcon }) end)
-				if logoIcon.IsLoaded then return end
-			end
-		end)
 	else
 		create("TextLabel", {
 			Size = UDim2.fromScale(1, 1),
