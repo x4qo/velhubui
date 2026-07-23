@@ -241,7 +241,7 @@ function VelUI:CreateWindow(opts)
 	end
 	local logoImage
 	if opts.LogoImage == nil then
-		logoImage = "rbxassetid://101581344392684"
+		logoImage = "rbxthumb://type=Asset&id=101581344392684&w=420&h=420"
 	elseif opts.LogoImage == false then
 		logoImage = nil
 	else
