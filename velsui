@@ -813,131 +813,60 @@ function VelUI:CreateWindow(opts)
 	local keybindListening = false
 	local keybindEntry = nil
 	local keybindPopupOpen = false
-	local modeOpen = false
-
-	local MODE_CLOSED, MODE_OPEN = 34, 100
 	local BASE_HEIGHT = 98
-	local modeDropdown = create("Frame", {
-		Position = UDim2.fromOffset(10, 54),
-		Size = UDim2.new(1, -20, 0, MODE_CLOSED),
-		BackgroundColor3 = C.Control,
-		BorderSizePixel = 0,
-		ClipsDescendants = true,
-		ZIndex = 47,
-		Parent = keybindPop,
-	}, { corner(9), stroke(C.Line) })
-	create("TextLabel", {
-		Position = UDim2.fromOffset(12, 0),
-		Size = UDim2.new(1, -24, 0, MODE_CLOSED),
-		BackgroundTransparency = 1,
-		Text = "Mode",
-		TextColor3 = C.Muted,
-		TextSize = 12,
-		FontFace = Medium,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		ZIndex = 48,
-		Parent = modeDropdown,
-	})
-	local modeLabel = create("TextLabel", {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -30, 0, 0),
-		Size = UDim2.fromOffset(70, MODE_CLOSED),
-		BackgroundTransparency = 1,
-		Text = "Toggle",
-		TextColor3 = C.Text,
-		TextSize = 13,
-		FontFace = Medium,
-		TextXAlignment = Enum.TextXAlignment.Right,
-		ZIndex = 48,
-		Parent = modeDropdown,
-	})
-	local modeChevron = create("TextLabel", {
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -11, 0, MODE_CLOSED / 2),
-		Size = UDim2.fromOffset(16, 16),
-		BackgroundTransparency = 1,
-		Text = "⌄",
-		TextColor3 = C.Muted,
-		TextSize = 15,
-		ZIndex = 48,
-		Parent = modeDropdown,
-	})
-	local modeHeader = create("TextButton", {
-		Size = UDim2.new(1, 0, 0, MODE_CLOSED),
-		BackgroundTransparency = 1,
-		Text = "",
-		AutoButtonColor = false,
-		ZIndex = 48,
-		Parent = modeDropdown,
-	})
 
-	local function setModeOpen(o)
-		modeOpen = o
-		local delta = o and (MODE_OPEN - MODE_CLOSED) or 0
-		tween(modeChevron, 0.2, { Rotation = o and 180 or 0 })
-		tween(modeDropdown, 0.26, { Size = UDim2.new(1, -20, 0, o and MODE_OPEN or MODE_CLOSED) }, Enum.EasingStyle.Quint)
-		tween(keybindPop, 0.26, { Size = UDim2.fromOffset(186, BASE_HEIGHT + delta) }, Enum.EasingStyle.Quint)
+	local modeButtons = {}
+	local currentMode = "Toggle"
+	local function highlightMode(value, animate)
+		currentMode = value
+		local d = animate == false and 0 or 0.16
+		for _, mb in ipairs(modeButtons) do
+			local sel = mb.value == value
+			tween(mb.button, d, { BackgroundColor3 = sel and C.Accent or C.Control })
+			tween(mb.label, d, { TextColor3 = sel and Color3.new(1, 1, 1) or C.Muted })
+		end
 	end
-	modeHeader.MouseButton1Click:Connect(function()
-		haptic(0.1)
-		setModeOpen(not modeOpen)
-	end)
 
-	local function modeOption(text, value, y)
-		local opt = create("TextButton", {
-			Position = UDim2.fromOffset(6, y),
-			Size = UDim2.new(1, -12, 0, 28),
-			BackgroundColor3 = C.Line,
-			BackgroundTransparency = 1,
+	local function modeButton(text, value, x)
+		local btn = create("TextButton", {
+			Position = UDim2.fromOffset(x, 54),
+			Size = UDim2.fromOffset(79, 36),
+			BackgroundColor3 = C.Control,
 			BorderSizePixel = 0,
 			Text = "",
 			AutoButtonColor = false,
-			ZIndex = 48,
-			Parent = modeDropdown,
-		}, { corner(7) })
-		local bar = create("Frame", {
-			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.new(0, 6, 0.5, 0),
-			Size = UDim2.fromOffset(3, 0),
-			BackgroundColor3 = C.Accent,
-			BorderSizePixel = 0,
-			ZIndex = 49,
-			Parent = opt,
-		}, { corner(2) })
-		table.insert(accentListeners, function(color) bar.BackgroundColor3 = color end)
+			ZIndex = 47,
+			Parent = keybindPop,
+		}, { corner(9), stroke(C.Line) })
 		local lbl = create("TextLabel", {
-			Position = UDim2.fromOffset(16, 0),
-			Size = UDim2.new(1, -26, 1, 0),
+			Size = UDim2.fromScale(1, 1),
 			BackgroundTransparency = 1,
 			Text = text,
 			TextColor3 = C.Muted,
 			TextSize = 13,
 			FontFace = Medium,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			ZIndex = 49,
-			Parent = opt,
+			ZIndex = 48,
+			Parent = btn,
 		})
-		opt.MouseEnter:Connect(function()
-			tween(opt, 0.14, { BackgroundTransparency = 0.35 })
-			tween(lbl, 0.14, { TextColor3 = C.Text })
-			tween(bar, 0.18, { Size = UDim2.fromOffset(3, 14) }, Enum.EasingStyle.Back)
+		local mb = { button = btn, label = lbl, value = value }
+		table.insert(modeButtons, mb)
+		btn.MouseEnter:Connect(function()
+			if currentMode ~= value then tween(btn, 0.14, { BackgroundColor3 = C.PanelHover }) end
 		end)
-		opt.MouseLeave:Connect(function()
-			tween(opt, 0.14, { BackgroundTransparency = 1 })
-			tween(lbl, 0.14, { TextColor3 = C.Muted })
-			tween(bar, 0.14, { Size = UDim2.fromOffset(3, 0) })
+		btn.MouseLeave:Connect(function()
+			if currentMode ~= value then tween(btn, 0.14, { BackgroundColor3 = C.Control }) end
 		end)
-		opt.MouseButton1Click:Connect(function()
+		btn.MouseButton1Click:Connect(function()
 			haptic(0.1)
 			if keybindEntry then keybindEntry.mode = value end
-			modeLabel.Text = text
-			setModeOpen(false)
+			highlightMode(value)
 			if refreshKeybindHud then refreshKeybindHud() end
 		end)
-		return opt
+		return mb
 	end
-	modeOption("Hold", "Hold", 36)
-	modeOption("Toggle", "Toggle", 66)
+	modeButton("Hold", "Hold", 10)
+	modeButton("Toggle", "Toggle", 97)
+	table.insert(accentListeners, function() highlightMode(currentMode, false) end)
 
 	local function refreshKeyButton()
 		if keybindListening then
@@ -953,7 +882,6 @@ function VelUI:CreateWindow(opts)
 		if not keybindPopupOpen then return end
 		keybindPopupOpen = false
 		keybindListening = false
-		modeOpen = false
 		tween(keybindScale, 0.2, { Scale = 0 }, Enum.EasingStyle.Quart).Completed:Once(function()
 			if not keybindPopupOpen then
 				keybindPop.Visible = false
@@ -970,10 +898,7 @@ function VelUI:CreateWindow(opts)
 		keybindListening = false
 		refreshKeyButton()
 		entry.mode = entry.mode or "Toggle"
-		modeOpen = false
-		modeLabel.Text = entry.mode
-		modeChevron.Rotation = 0
-		modeDropdown.Size = UDim2.new(1, -20, 0, MODE_CLOSED)
+		highlightMode(entry.mode, false)
 		keybindPop.Size = UDim2.fromOffset(186, BASE_HEIGHT)
 		local rel = gear.AbsolutePosition - window.AbsolutePosition
 		keybindPop.Position = UDim2.fromOffset(rel.X + gear.AbsoluteSize.X, rel.Y + gear.AbsoluteSize.Y + 6)
