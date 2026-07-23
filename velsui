@@ -1,5 +1,7 @@
+local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local HapticService = game:GetService("HapticService")
 
 local Library = {
 	Version = "1.0.0",
@@ -24,6 +26,9 @@ local DefaultIcons = {
 	Settings = "rbxassetid://80758916183665",
 	Minus = "rbxassetid://10734896206",
 	Close = "rbxassetid://10747384394",
+	Search = "rbxassetid://10734943674",
+	Eye = "rbxassetid://10734895530",
+	EyeOff = "rbxassetid://10734895267",
 }
 
 local FONT = "rbxasset://fonts/families/BuilderSans.json"
@@ -65,6 +70,55 @@ local function tween(object, duration, properties, style)
 	), properties)
 	animation:Play()
 	return animation
+end
+
+local function haptic(strength)
+	task.spawn(function()
+		pcall(function()
+			if HapticService:IsVibrationSupported(Enum.UserInputType.Gamepad1) then
+				HapticService:SetMotor(
+					Enum.UserInputType.Gamepad1,
+					Enum.VibrationMotor.Small,
+					strength or 0.18
+				)
+				task.wait(0.035)
+				HapticService:SetMotor(Enum.UserInputType.Gamepad1, Enum.VibrationMotor.Small, 0)
+			end
+		end)
+	end)
+end
+
+local fadeProperties = {
+	TextLabel = { "BackgroundTransparency", "TextTransparency", "TextStrokeTransparency" },
+	TextButton = { "BackgroundTransparency", "TextTransparency", "TextStrokeTransparency" },
+	TextBox = { "BackgroundTransparency", "TextTransparency", "TextStrokeTransparency" },
+	ImageLabel = { "BackgroundTransparency", "ImageTransparency" },
+	ImageButton = { "BackgroundTransparency", "ImageTransparency" },
+	Frame = { "BackgroundTransparency" },
+	ScrollingFrame = { "BackgroundTransparency" },
+	UIStroke = { "Transparency" },
+}
+
+local fadeTargets = setmetatable({}, { __mode = "k" })
+
+local function fadeIn(container, duration)
+	for _, object in ipairs(container:GetDescendants()) do
+		local properties = fadeProperties[object.ClassName]
+		if properties then
+			local targets = fadeTargets[object]
+			if not targets then
+				targets = {}
+				for _, property in ipairs(properties) do targets[property] = object[property] end
+				fadeTargets[object] = targets
+			end
+			local goal = {}
+			for property, target in pairs(targets) do
+				object[property] = 1
+				goal[property] = target
+			end
+			tween(object, duration or 0.5, goal, Enum.EasingStyle.Sine)
+		end
+	end
 end
 
 local function merge(base, additions)
@@ -215,7 +269,7 @@ function Library:AddWindow(config)
 
 	local tabList = new("Frame", {
 		Position = UDim2.fromOffset(14, 88),
-		Size = UDim2.new(1, -28, 1, -105),
+		Size = UDim2.new(1, -28, 1, config.UserInfo == false and -105 or -181),
 		BackgroundTransparency = 1,
 		Parent = sidebar,
 	}, {
@@ -262,6 +316,7 @@ function Library:AddWindow(config)
 		Tabs = {},
 		Connections = {},
 		Keybinds = {},
+		Searchable = {},
 		Open = true,
 		ToggleKey = config.ToggleKey or Enum.KeyCode.K,
 	}, { __index = WindowMethods })
@@ -294,6 +349,176 @@ function Library:AddWindow(config)
 	window.Dock = dock
 	window.Backdrop = backdrop
 	window.OriginalPosition = frame.Position
+	window.OriginalSize = size
+	window.BackdropTransparency = config.BackdropTransparency or 0.88
+	window.DockTargetSize = UDim2.fromOffset(56, 58)
+	local keybindHud = new("Frame", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 16, 0.5, 0),
+		Size = UDim2.fromOffset(242, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = palette.Panel,
+		BorderSizePixel = 0,
+		Visible = false,
+		Parent = screen,
+	}, {
+		corner(14),
+		stroke(palette.Line, 0.4),
+		new("UIPadding", {
+			PaddingTop = UDim.new(0, 12),
+			PaddingBottom = UDim.new(0, 12),
+			PaddingLeft = UDim.new(0, 14),
+			PaddingRight = UDim.new(0, 14),
+		}),
+		new("UIListLayout", {
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			Padding = UDim.new(0, 4),
+		}),
+	})
+	addText(keybindHud, config.KeybindHudTitle or "Keybinds", 14, palette.Muted, {
+		Size = UDim2.new(1, 0, 0, 20),
+		FontFace = Bold,
+		LayoutOrder = 0,
+	})
+	new("Frame", {
+		Size = UDim2.new(1, 0, 0, 1),
+		BackgroundColor3 = palette.Line,
+		BorderSizePixel = 0,
+		LayoutOrder = 1,
+		Parent = keybindHud,
+	})
+	window.KeybindHud = keybindHud
+	window.KeybindHudRows = {}
+
+	if config.UserInfo ~= false then
+		local localPlayer = Players.LocalPlayer
+		local userConfig = type(config.UserInfo) == "table" and config.UserInfo or {}
+		local displayName = userConfig.Name or (localPlayer and localPlayer.DisplayName) or "Aurora User"
+		local playerCard = new("Frame", {
+			AnchorPoint = Vector2.new(0, 1),
+			Position = UDim2.new(0, 12, 1, -12),
+			Size = UDim2.new(1, -24, 0, 64),
+			BackgroundColor3 = Color3.fromRGB(50, 54, 61),
+			BorderSizePixel = 0,
+			Parent = sidebar,
+		}, { corner(18), stroke(palette.Line, 0.35) })
+		local avatar = new("ImageLabel", {
+			Position = UDim2.fromOffset(9, 9),
+			Size = UDim2.fromOffset(46, 46),
+			BackgroundColor3 = palette.Control,
+			BorderSizePixel = 0,
+			Image = userConfig.Avatar or "",
+			Parent = playerCard,
+		}, { corner(15) })
+		local blurGroup = new("Frame", {
+			Position = UDim2.fromOffset(9, 9),
+			Size = UDim2.fromOffset(46, 46),
+			BackgroundTransparency = 1,
+			ClipsDescendants = true,
+			Visible = false,
+			ZIndex = 3,
+			Parent = playerCard,
+		}, { corner(15) })
+		local blurLayers = {}
+		for index = 1, 40 do
+			local angle = index * 2.399963
+			local distance = 6 * math.sqrt(index / 40)
+			blurLayers[index] = new("ImageLabel", {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.new(0.5, math.cos(angle) * distance, 0.5, math.sin(angle) * distance),
+				Size = UDim2.fromOffset(64, 64),
+				BackgroundTransparency = 1,
+				Image = userConfig.Avatar or "",
+				ImageTransparency = 1,
+				ZIndex = 3,
+				Parent = blurGroup,
+			})
+		end
+		local frost = new("Frame", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundColor3 = Color3.fromRGB(58, 62, 70),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			ZIndex = 4,
+			Parent = blurGroup,
+		})
+		local username = addText(playerCard, displayName, 14, palette.Text, {
+			Position = UDim2.fromOffset(64, 10),
+			Size = UDim2.new(1, -101, 0, 24),
+			TextTruncate = Enum.TextTruncate.AtEnd,
+		})
+		addText(playerCard, userConfig.Tier or "PREMIUM", 10, palette.Muted, {
+			Position = UDim2.fromOffset(64, 33),
+			Size = UDim2.new(1, -101, 0, 18),
+			FontFace = Bold,
+		})
+		local privacy = new("TextButton", {
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -8, 0, 8),
+			Size = UDim2.fromOffset(28, 28),
+			BackgroundColor3 = palette.Control,
+			BorderSizePixel = 0,
+			Text = "",
+			AutoButtonColor = false,
+			Parent = playerCard,
+		}, {
+			corner(9),
+			stroke(palette.Line, 0.35),
+			new("ImageLabel", {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(0.5, 0.5),
+				Size = UDim2.fromOffset(15, 15),
+				BackgroundTransparency = 1,
+				Image = DefaultIcons.Eye,
+				ImageColor3 = palette.Muted,
+			}),
+		})
+		local privacyIcon = privacy:FindFirstChildOfClass("ImageLabel")
+		local privacyScale = new("UIScale", { Scale = 1, Parent = privacy })
+		local hidden = false
+		privacy.MouseEnter:Connect(function()
+			tween(privacyScale, 0.18, { Scale = 1.09 }, Enum.EasingStyle.Back)
+			tween(privacyIcon, 0.16, { ImageColor3 = palette.Text })
+		end)
+		privacy.MouseLeave:Connect(function()
+			tween(privacyScale, 0.18, { Scale = 1 })
+			tween(privacyIcon, 0.16, { ImageColor3 = palette.Muted })
+		end)
+		privacy.MouseButton1Click:Connect(function()
+			hidden = not hidden
+			username.Text = hidden and (userConfig.HiddenName or "Hidden user") or displayName
+			privacyIcon.Image = hidden and DefaultIcons.EyeOff or DefaultIcons.Eye
+			if hidden then
+				blurGroup.Visible = true
+				tween(avatar, 0.24, { ImageTransparency = 1 })
+				for _, layer in ipairs(blurLayers) do tween(layer, 0.26, { ImageTransparency = 0.9 }) end
+				tween(frost, 0.26, { BackgroundTransparency = 0.6 })
+			else
+				tween(avatar, 0.24, { ImageTransparency = 0 })
+				for _, layer in ipairs(blurLayers) do tween(layer, 0.2, { ImageTransparency = 1 }) end
+				tween(frost, 0.2, { BackgroundTransparency = 1 })
+				task.delay(0.2, function()
+					if not hidden then blurGroup.Visible = false end
+				end)
+			end
+		end)
+		if avatar.Image == "" and localPlayer then
+			task.spawn(function()
+				local success, image = pcall(function()
+					return Players:GetUserThumbnailAsync(
+						localPlayer.UserId,
+						Enum.ThumbnailType.HeadShot,
+						Enum.ThumbnailSize.Size150x150
+					)
+				end)
+				if success and avatar.Parent then
+					avatar.Image = image
+					for _, layer in ipairs(blurLayers) do layer.Image = image end
+				end
+			end)
+		end
+		window.PlayerCard = playerCard
+	end
 
 	local function topButton(offset, asset, hover)
 		local button = new("TextButton", {
@@ -317,13 +542,16 @@ function Library:AddWindow(config)
 			}),
 		})
 		local icon = button:FindFirstChildOfClass("ImageLabel")
+		local pop = new("UIScale", { Scale = 1, Parent = button })
 		button.MouseEnter:Connect(function()
 			tween(button, 0.15, { BackgroundColor3 = hover or palette.PanelHover })
 			tween(icon, 0.15, { ImageColor3 = palette.Text })
+			tween(pop, 0.2, { Scale = 1.08 }, Enum.EasingStyle.Back)
 		end)
 		button.MouseLeave:Connect(function()
 			tween(button, 0.15, { BackgroundColor3 = palette.Control })
 			tween(icon, 0.15, { ImageColor3 = palette.Muted })
+			tween(pop, 0.2, { Scale = 1 })
 		end)
 		return button
 	end
@@ -332,6 +560,79 @@ function Library:AddWindow(config)
 	local minimize = topButton(-58, DefaultIcons.Minus)
 	local close = topButton(-16, DefaultIcons.Close, palette.Danger)
 	settings.MouseButton1Click:Connect(function() window:SelectTab("Settings") end)
+	local searchShell = new("Frame", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -150, 0, 22),
+		Size = UDim2.fromOffset(34, 34),
+		BackgroundColor3 = palette.Control,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		Parent = content,
+	}, {
+		corner(11),
+		stroke(palette.Line, 0.35),
+	})
+	local searchBox = new("TextBox", {
+		Position = UDim2.fromOffset(11, 0),
+		Size = UDim2.new(1, -43, 1, 0),
+		BackgroundTransparency = 1,
+		Text = "",
+		PlaceholderText = config.SearchPlaceholder or "Search features...",
+		PlaceholderColor3 = palette.Muted,
+		TextColor3 = palette.Text,
+		TextSize = 13,
+		ClearTextOnFocus = false,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Visible = false,
+		Parent = searchShell,
+	})
+	local searchIcon = new("ImageButton", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -9, 0.5, 0),
+		Size = UDim2.fromOffset(16, 16),
+		BackgroundTransparency = 1,
+		Image = DefaultIcons.Search,
+		ImageColor3 = palette.Muted,
+		Parent = searchShell,
+	})
+	local searchFocused = false
+	local searchOpen = false
+	local function expandSearch(open)
+		searchOpen = open
+		if open then searchBox.Visible = true end
+		tween(searchShell, 0.28, {
+			Size = UDim2.fromOffset(open and (config.SearchWidth or 178) or 34, 34),
+		}, Enum.EasingStyle.Back).Completed:Once(function()
+			if not searchOpen and not searchFocused and searchBox.Text == "" then searchBox.Visible = false end
+		end)
+	end
+	searchShell.MouseEnter:Connect(function() expandSearch(true) end)
+	searchShell.MouseLeave:Connect(function()
+		task.delay(0.06, function()
+			if not searchFocused and searchBox.Text == "" then expandSearch(false) end
+		end)
+	end)
+	searchBox.Focused:Connect(function()
+		searchFocused = true
+		expandSearch(true)
+	end)
+	searchBox.FocusLost:Connect(function()
+		searchFocused = false
+		if searchBox.Text == "" then expandSearch(false) end
+	end)
+	searchIcon.MouseButton1Click:Connect(function()
+		searchFocused = true
+		expandSearch(true)
+		searchBox:CaptureFocus()
+	end)
+	searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+		local query = string.lower(searchBox.Text)
+		for _, item in ipairs(window.Searchable) do
+			item.Object.Visible = query == "" or string.find(item.Name, query, 1, true) ~= nil
+		end
+	end)
+	window.SearchBox = searchBox
+	window.SearchShell = searchShell
 	minimize.MouseButton1Click:Connect(function() window:Toggle() end)
 	close.MouseButton1Click:Connect(function()
 		if config.CloseDestroys then window:Destroy() else window:Toggle(false) end
@@ -357,6 +658,9 @@ function Library:AddWindow(config)
 	end))
 	table.insert(window.Connections, UserInputService.InputBegan:Connect(function(input, processed)
 		if processed or UserInputService:GetFocusedTextBox() then return end
+		for _, bind in ipairs(window.Keybinds) do
+			if bind.Listening then return end
+		end
 		if input.KeyCode == window.ToggleKey then
 			window:Toggle()
 			return
@@ -371,11 +675,92 @@ function Library:AddWindow(config)
 		end
 	end))
 
+	if config.IntroAnimation ~= false then
+		frame.Size = UDim2.fromOffset(
+			math.max(320, size.X.Offset - 60),
+			math.max(260, size.Y.Offset - 70)
+		)
+		frame.Position = UDim2.new(
+			window.OriginalPosition.X.Scale,
+			window.OriginalPosition.X.Offset,
+			window.OriginalPosition.Y.Scale + 0.03,
+			window.OriginalPosition.Y.Offset
+		)
+		tween(frame, 0.58, {
+			Size = size,
+			Position = window.OriginalPosition,
+		}, Enum.EasingStyle.Back)
+	end
+
 	table.insert(self.Windows, window)
 	return window
 end
 
 Library.CreateWindow = Library.AddWindow
+
+function WindowMethods:_RegisterSearch(text, object)
+	table.insert(self.Searchable, {
+		Name = string.lower(tostring(text or "")),
+		Object = object,
+	})
+end
+
+function WindowMethods:_RefreshKeybindHud()
+	local visible = 0
+	for index, bind in ipairs(self.Keybinds) do
+		local row = self.KeybindHudRows[bind]
+		if bind.Key ~= Enum.KeyCode.Unknown then
+			if not row then
+				local frame = new("Frame", {
+					Size = UDim2.new(1, 0, 0, 30),
+					BackgroundTransparency = 1,
+					LayoutOrder = index + 1,
+					Parent = self.KeybindHud,
+				})
+				local nameLabel = addText(frame, "", 13, self.Theme.Muted, {
+					Size = UDim2.new(1, -105, 1, 0),
+					TextTruncate = Enum.TextTruncate.AtEnd,
+				})
+				local modeLabel = addText(frame, "", 12, self.Theme.Muted, {
+					AnchorPoint = Vector2.new(1, 0.5),
+					Position = UDim2.new(1, -50, 0.5, 0),
+					Size = UDim2.fromOffset(50, 22),
+					TextXAlignment = Enum.TextXAlignment.Right,
+				})
+				local pill = new("Frame", {
+					AnchorPoint = Vector2.new(1, 0.5),
+					Position = UDim2.new(1, 0, 0.5, 0),
+					Size = UDim2.fromOffset(42, 22),
+					BackgroundColor3 = self.Theme.Control,
+					BorderSizePixel = 0,
+					Parent = frame,
+				}, { corner(6) })
+				local keyLabel = addText(pill, "", 12, self.Theme.Muted, {
+					Size = UDim2.fromScale(1, 1),
+					FontFace = Bold,
+					TextXAlignment = Enum.TextXAlignment.Center,
+				})
+				row = { Frame = frame, Name = nameLabel, Mode = modeLabel, Pill = pill, Key = keyLabel }
+				self.KeybindHudRows[bind] = row
+			end
+			row.Frame.Visible = true
+			row.Name.Text = bind.Name
+			row.Mode.Text = bind.Mode
+			row.Key.Text = bind.Key.Name
+			tween(row.Name, 0.18, { TextColor3 = bind.Active and self.Theme.Text or self.Theme.Muted })
+			tween(row.Pill, 0.18, {
+				BackgroundColor3 = bind.Active and self.Theme.Accent or self.Theme.Control,
+			})
+			tween(row.Key, 0.18, {
+				TextColor3 = bind.Active and self.Theme.Text or self.Theme.Muted,
+			})
+			visible += 1
+		elseif row then
+			row.Frame.Visible = false
+		end
+	end
+	self.KeybindHud.Visible = visible > 0
+end
 
 function WindowMethods:AddTab(config)
 	config = normalize(config, "Tab")
@@ -439,6 +824,7 @@ function WindowMethods:AddTab(config)
 		Sections = {},
 	}, { __index = TabMethods })
 	table.insert(self.Tabs, tab)
+	self.DockTargetSize = UDim2.fromOffset(56, 10 + #self.Tabs * 48)
 	local dockButton = new("TextButton", {
 		Size = UDim2.fromOffset(40, 40),
 		BackgroundColor3 = palette.Control,
@@ -461,19 +847,26 @@ function WindowMethods:AddTab(config)
 	})
 	tab.DockButton = dockButton
 	local dockIcon = dockButton:FindFirstChildOfClass("ImageLabel")
+	local dockPop = new("UIScale", { Scale = 1, Parent = dockButton })
 	dockButton.MouseEnter:Connect(function()
 		tween(dockButton, 0.15, { BackgroundColor3 = palette.PanelHover })
 		tween(dockIcon, 0.15, { ImageColor3 = palette.Accent })
+		tween(dockPop, 0.2, { Scale = 1.12 }, Enum.EasingStyle.Back)
 	end)
 	dockButton.MouseLeave:Connect(function()
 		tween(dockButton, 0.15, { BackgroundColor3 = palette.Control })
 		tween(dockIcon, 0.15, { ImageColor3 = palette.Muted })
+		tween(dockPop, 0.2, { Scale = 1 })
 	end)
 	dockButton.MouseButton1Click:Connect(function()
+		haptic(0.14)
 		self:Toggle(true)
 		self:SelectTab(tab)
 	end)
-	button.MouseButton1Click:Connect(function() self:SelectTab(tab) end)
+	button.MouseButton1Click:Connect(function()
+		haptic(0.12)
+		self:SelectTab(tab)
+	end)
 	if #self.Tabs == 1 or config.Selected then self:SelectTab(tab) end
 	return tab
 end
@@ -499,37 +892,95 @@ function WindowMethods:SelectTab(tab)
 	self.ActiveTab = tab
 	self.HeaderTitle.Text = tab.Name
 	self.HeaderDescription.Text = tab.Description
+	fadeIn(tab.Page, 0.5)
+	self.HeaderTitle.TextTransparency = 1
+	self.HeaderDescription.TextTransparency = 1
+	tween(self.HeaderTitle, 0.5, { TextTransparency = 0 }, Enum.EasingStyle.Sine)
+	tween(self.HeaderDescription, 0.5, { TextTransparency = 0 }, Enum.EasingStyle.Sine)
 end
 
 function WindowMethods:Toggle(value)
 	if value == nil then value = not self.Open end
 	self.Open = value
+	local dockCentre = UDim2.new(1, -42, 0.5, 0)
 	if value then
 		self.Frame.Visible = true
 		self.Dock.Visible = true
-		tween(self.Dock, 0.16, { Size = UDim2.fromOffset(0, 0) }).Completed:Once(function()
+		tween(self.Dock, 0.2, { Size = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Quart).Completed:Once(function()
 			if self.Open and self.Dock.Parent then self.Dock.Visible = false end
 		end)
-		self.Frame.Position = UDim2.new(1, -42, 0.5, 0)
-		self.Scale.Scale = 0.92
-		tween(self.Backdrop, 0.24, { BackgroundTransparency = 0.88 })
-		tween(self.Frame, 0.3, { Position = self.OriginalPosition })
-		tween(self.Scale, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
+		self.Frame.Size = self.OriginalSize
+		self.Frame.Position = dockCentre
+		self.Scale.Scale = 0.05
+		self.Backdrop.BackgroundTransparency = 1
+		tween(self.Backdrop, 0.34, { BackgroundTransparency = self.BackdropTransparency })
+		tween(self.Scale, 0.44, { Scale = 1 }, Enum.EasingStyle.Back)
+		tween(self.Frame, 0.44, { Position = self.OriginalPosition }, Enum.EasingStyle.Quint)
 	else
-		tween(self.Backdrop, 0.2, { BackgroundTransparency = 1 })
-		tween(self.Scale, 0.2, { Scale = 0.08 })
-		tween(self.Frame, 0.24, { Position = UDim2.new(1, -42, 0.5, 0) }).Completed:Once(function()
-			if not self.Open and self.Frame.Parent then self.Frame.Visible = false end
+		tween(self.Backdrop, 0.32, { BackgroundTransparency = 1 })
+		tween(self.Scale, 0.3, { Scale = 0.05 }, Enum.EasingStyle.Quint)
+		tween(self.Frame, 0.3, { Position = dockCentre }, Enum.EasingStyle.Quint).Completed:Once(function()
+			if not self.Open and self.Frame.Parent then
+				self.Frame.Visible = false
+				self.Scale.Scale = 1
+				self.Frame.Position = self.OriginalPosition
+			end
 		end)
 		self.Dock.Visible = true
 		self.Dock.Size = UDim2.fromOffset(20, 40)
-		tween(self.Dock, 0.3, { Size = UDim2.fromOffset(56, 0) }, Enum.EasingStyle.Back)
+		tween(self.Dock, 0.36, { Size = self.DockTargetSize }, Enum.EasingStyle.Back)
 	end
 end
 
 function WindowMethods:SetToggleKey(key)
 	if typeof(key) ~= "EnumItem" or key.EnumType ~= Enum.KeyCode then return false end
 	self.ToggleKey = key
+	return true
+end
+
+function WindowMethods:SetAccent(color)
+	if typeof(color) ~= "Color3" then return false end
+	local previous = self.Theme.Accent
+	self.Theme.Accent = color
+	for _, object in ipairs(self.ScreenGui:GetDescendants()) do
+		pcall(function()
+			if object.BackgroundColor3 == previous then object.BackgroundColor3 = color end
+		end)
+		pcall(function()
+			if object.ImageColor3 == previous then object.ImageColor3 = color end
+		end)
+		pcall(function()
+			if object.TextColor3 == previous then object.TextColor3 = color end
+		end)
+	end
+	return true
+end
+
+function WindowMethods:SetTextScale(scale)
+	if type(scale) ~= "number" then return false end
+	scale = math.clamp(scale, 0.7, 1.5)
+	for _, object in ipairs(self.ScreenGui:GetDescendants()) do
+		if object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox") then
+			local base = object:GetAttribute("AuroraBaseTextSize")
+			if not base then
+				base = object.TextSize
+				object:SetAttribute("AuroraBaseTextSize", base)
+			end
+			object.TextSize = math.max(8, math.round(base * scale))
+		end
+	end
+	return true
+end
+
+function WindowMethods:SetFont(path)
+	if type(path) ~= "string" then return false end
+	for _, object in ipairs(self.ScreenGui:GetDescendants()) do
+		if object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox") then
+			pcall(function()
+				object.FontFace = Font.new(path, object.FontFace.Weight, Enum.FontStyle.Normal)
+			end)
+		end
+	end
 	return true
 end
 
@@ -563,10 +1014,25 @@ function TabMethods:AddSection(config)
 		}),
 		new("UIListLayout", { Padding = UDim.new(0, 7), SortOrder = Enum.SortOrder.LayoutOrder }),
 	})
-	addText(holder, config.Name, 17, palette.Text, {
+	local sectionHeader = new("Frame", {
 		Size = UDim2.new(1, 0, 0, 24),
-		FontFace = Bold,
+		BackgroundTransparency = 1,
 		LayoutOrder = 1,
+		Parent = holder,
+	})
+	new("ImageLabel", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 0, 0.5, 0),
+		Size = UDim2.fromOffset(17, 17),
+		BackgroundTransparency = 1,
+		Image = config.Icon or DefaultIcons.Tab,
+		ImageColor3 = palette.Accent,
+		Parent = sectionHeader,
+	})
+	addText(sectionHeader, config.Name, 17, palette.Text, {
+		Position = UDim2.fromOffset(27, 0),
+		Size = UDim2.new(1, -27, 1, 0),
+		FontFace = Bold,
 	})
 	local nextOrder = 2
 	if config.Description then
@@ -606,6 +1072,7 @@ function SectionMethods:AddLabel(config)
 		LayoutOrder = config.Order or self:_NextOrder(),
 	})
 	local control = {}
+	self.Window:_RegisterSearch(config.Text or config.Name, label)
 	function control:Set(text) label.Text = tostring(text) end
 	function control:Destroy() label:Destroy() end
 	return control
@@ -633,13 +1100,48 @@ function SectionMethods:AddButton(config)
 		Text = config.Name,
 		TextColor3 = palette.Text,
 		TextSize = 14,
+		TextXAlignment = Enum.TextXAlignment.Left,
 		AutoButtonColor = false,
 		LayoutOrder = config.Order or self:_NextOrder(),
 		Parent = self.Container,
-	}, { corner(11), stroke(palette.Line, 0.35) })
-	button.MouseEnter:Connect(function() tween(button, 0.15, { BackgroundColor3 = palette.Control }) end)
-	button.MouseLeave:Connect(function() tween(button, 0.15, { BackgroundColor3 = palette.Sidebar }) end)
-	button.MouseButton1Click:Connect(function() invoke(config.Callback) end)
+	}, {
+		corner(11),
+		stroke(palette.Line, 0.35),
+		new("UIPadding", {
+			PaddingLeft = UDim.new(0, 35),
+			PaddingRight = UDim.new(0, 31),
+		}),
+	})
+	local accentDot = new("Frame", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, -23, 0.5, 0),
+		Size = UDim2.fromOffset(7, 19),
+		BackgroundColor3 = palette.Accent,
+		BorderSizePixel = 0,
+		Parent = button,
+	}, { corner(4) })
+	addText(button, "›", 22, palette.Muted, {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, 22, 0.5, 0),
+		Size = UDim2.fromOffset(20, 24),
+		TextXAlignment = Enum.TextXAlignment.Center,
+	})
+	button.MouseEnter:Connect(function()
+		tween(button, 0.18, { BackgroundColor3 = palette.Control })
+		tween(accentDot, 0.2, { Size = UDim2.fromOffset(9, 23) }, Enum.EasingStyle.Back)
+	end)
+	button.MouseLeave:Connect(function()
+		tween(button, 0.18, { BackgroundColor3 = palette.Sidebar })
+		tween(accentDot, 0.2, { Size = UDim2.fromOffset(7, 19) })
+	end)
+	button.MouseButton1Click:Connect(function()
+		haptic(0.18)
+		tween(button, 0.08, { BackgroundColor3 = palette.Accent }).Completed:Once(function()
+			tween(button, 0.22, { BackgroundColor3 = palette.Control })
+		end)
+		invoke(config.Callback)
+	end)
+	self.Window:_RegisterSearch(config.Name, button)
 	local control = {}
 	function control:SetText(text) button.Text = tostring(text) end
 	function control:Fire() invoke(config.Callback) end
@@ -662,33 +1164,79 @@ function SectionMethods:AddToggle(config)
 			TextTruncate = Enum.TextTruncate.AtEnd,
 		})
 	end
+	local checkbox = string.lower(config.Style or "Switch") == "checkbox"
 	local track = new("TextButton", {
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, 0, 0.5, 0),
-		Size = UDim2.fromOffset(43, 25),
+		Size = checkbox and UDim2.fromOffset(25, 25) or UDim2.fromOffset(43, 25),
 		BackgroundColor3 = palette.Control,
 		BorderSizePixel = 0,
 		Text = "",
 		AutoButtonColor = false,
 		Parent = row,
-	}, { corner(13) })
+	}, { corner(checkbox and 7 or 13) })
 	local dot = new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Size = UDim2.fromOffset(19, 19),
+		Position = checkbox and UDim2.fromScale(0.5, 0.5) or UDim2.new(0, 13, 0.5, 0),
+		Size = checkbox and UDim2.fromOffset(18, 18) or UDim2.fromOffset(19, 19),
 		BackgroundColor3 = palette.Text,
+		BackgroundTransparency = checkbox and 1 or 0,
 		BorderSizePixel = 0,
 		Parent = track,
-	}, { corner(10) })
+	}, checkbox and {} or { corner(10) })
+	local checkShort
+	local checkLong
+	local checkScale
+	if checkbox then
+		checkShort = new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromOffset(5, 10),
+			Size = UDim2.fromOffset(8, 4),
+			Rotation = 45,
+			BackgroundColor3 = palette.Text,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Parent = dot,
+		}, { corner(2) })
+		checkLong = new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromOffset(11, 8),
+			Size = UDim2.fromOffset(13, 4),
+			Rotation = -45,
+			BackgroundColor3 = palette.Text,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Parent = dot,
+		}, { corner(2) })
+		checkScale = new("UIScale", { Scale = 0.15, Parent = dot })
+	end
 	local value = config.Default == true
+	self.Window:_RegisterSearch(config.Name .. " " .. (config.Description or ""), row)
 	local control = {}
 	function control:Set(state, silent)
 		state = not not state
 		if value == state then return end
 		value = state
 		tween(track, 0.18, { BackgroundColor3 = value and palette.Accent or palette.Control })
-		tween(dot, 0.22, {
-			Position = value and UDim2.new(1, -13, 0.5, 0) or UDim2.new(0, 13, 0.5, 0),
-		}, Enum.EasingStyle.Back)
+		if checkbox then
+			if value then
+				track.Rotation = -7
+				tween(track, 0.28, { Rotation = 0 }, Enum.EasingStyle.Back)
+				tween(checkShort, 0.16, { BackgroundTransparency = 0 })
+				task.delay(0.06, function()
+					if value then tween(checkLong, 0.18, { BackgroundTransparency = 0 }) end
+				end)
+				tween(checkScale, 0.34, { Scale = 1 }, Enum.EasingStyle.Back)
+			else
+				tween(checkShort, 0.12, { BackgroundTransparency = 1 })
+				tween(checkLong, 0.12, { BackgroundTransparency = 1 })
+				tween(checkScale, 0.18, { Scale = 0.15 })
+			end
+		else
+			tween(dot, 0.22, {
+				Position = value and UDim2.new(1, -13, 0.5, 0) or UDim2.new(0, 13, 0.5, 0),
+			}, Enum.EasingStyle.Back)
+		end
 		if not silent then invoke(config.Callback, value) end
 	end
 	function control:Get() return value end
@@ -725,13 +1273,16 @@ function SectionMethods:AddToggle(config)
 				}),
 			})
 			local gearIcon = gear:FindFirstChildOfClass("ImageLabel")
+			local gearPop = new("UIScale", { Scale = 1, Parent = gear })
 			gear.MouseEnter:Connect(function()
 				tween(gear, 0.15, { BackgroundColor3 = palette.PanelHover })
 				tween(gearIcon, 0.15, { ImageColor3 = palette.Accent })
+				tween(gearPop, 0.2, { Scale = 1.1 }, Enum.EasingStyle.Back)
 			end)
 			gear.MouseLeave:Connect(function()
 				tween(gear, 0.15, { BackgroundColor3 = palette.Control })
 				tween(gearIcon, 0.15, { ImageColor3 = palette.Muted })
+				tween(gearPop, 0.2, { Scale = 1 })
 			end)
 			local popup = new("Frame", {
 				AnchorPoint = Vector2.new(1, 0),
@@ -768,6 +1319,7 @@ function SectionMethods:AddToggle(config)
 				LayoutOrder = 1,
 				Parent = popup,
 			}, { corner(7) })
+			local popupScale = new("UIScale", { Scale = 0, Parent = popup })
 			local modeChoice = new("TextButton", {
 				Size = UDim2.new(1, 0, 0, 28),
 				BackgroundColor3 = palette.Control,
@@ -783,8 +1335,17 @@ function SectionMethods:AddToggle(config)
 			bind.DisplayButton = keyChoice
 			bind.ModeButton = modeChoice
 			bind.Popup = popup
+			bind.PopupScale = popupScale
 			gear.MouseButton1Click:Connect(function()
-				popup.Visible = not popup.Visible
+				if popup.Visible then
+					tween(popupScale, 0.2, { Scale = 0 }, Enum.EasingStyle.Quart).Completed:Once(function()
+						if popupScale.Scale == 0 then popup.Visible = false end
+					end)
+				else
+					popup.Visible = true
+					popupScale.Scale = 0
+					tween(popupScale, 0.34, { Scale = 1 }, Enum.EasingStyle.Back)
+				end
 			end)
 			keyChoice.MouseButton1Click:Connect(function() bind:Listen() end)
 			modeChoice.MouseButton1Click:Connect(function()
@@ -797,7 +1358,10 @@ function SectionMethods:AddToggle(config)
 	control.Section = self
 	value = not value
 	control:Set(config.Default == true, true)
-	track.MouseButton1Click:Connect(function() control:Toggle() end)
+	track.MouseButton1Click:Connect(function()
+		haptic(0.16)
+		control:Toggle()
+	end)
 	if config.Keybind then
 		control.Keybind = control:AddKeybind(type(config.Keybind) == "table" and config.Keybind or { Default = config.Keybind })
 	end
@@ -832,14 +1396,25 @@ function SectionMethods:AddSlider(config)
 		BorderSizePixel = 0,
 		Parent = bar,
 	}, { corner(4) })
+	local thumb = new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0, 0.5),
+		Size = UDim2.fromOffset(15, 15),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		ZIndex = 3,
+		Parent = bar,
+	}, { corner(8) })
 	local value = minimum
+	self.Window:_RegisterSearch(config.Name, row)
 	local control = {}
 	function control:Set(number, silent)
 		number = math.clamp(number, minimum, maximum)
 		number = math.round(number / increment) * increment
 		value = number
 		local ratio = (value - minimum) / (maximum - minimum)
-		tween(fill, 0.12, { Size = UDim2.fromScale(ratio, 1) })
+		tween(fill, 0.18, { Size = UDim2.fromScale(ratio, 1) })
+		tween(thumb, 0.18, { Position = UDim2.fromScale(ratio, 0.5) })
 		valueLabel.Text = tostring(value) .. (config.Suffix or "")
 		if not silent then invoke(config.Callback, value) end
 	end
@@ -852,13 +1427,21 @@ function SectionMethods:AddSlider(config)
 		))
 	end
 	bar.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true update(input) end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			haptic(0.12)
+			tween(thumb, 0.3, { Size = UDim2.fromOffset(20, 20) }, Enum.EasingStyle.Back)
+			update(input)
+		end
 	end)
 	local changed = UserInputService.InputChanged:Connect(function(input)
 		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then update(input) end
 	end)
 	local ended = UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+			dragging = false
+			tween(thumb, 0.45, { Size = UDim2.fromOffset(15, 15) }, Enum.EasingStyle.Back)
+		end
 	end)
 	row.Destroying:Connect(function() changed:Disconnect() ended:Disconnect() end)
 	control:Set(config.Default or minimum, true)
@@ -886,6 +1469,7 @@ function SectionMethods:AddInput(config)
 	}, { corner(9), stroke(palette.Line, 0.4) })
 	addPadding(box, 0, 0, 10, 10)
 	local control = {}
+	self.Window:_RegisterSearch(config.Name, row)
 	function control:Set(text, silent)
 		box.Text = tostring(text)
 		if not silent then invoke(config.Callback, box.Text) end
@@ -944,6 +1528,7 @@ function SectionMethods:AddDropdown(config)
 		new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder }),
 	})
 	local value
+	self.Window:_RegisterSearch(config.Name, row)
 	local control = {}
 	function control:Set(option, silent)
 		value = option
@@ -1012,12 +1597,14 @@ function SectionMethods:AddKeybind(config)
 		Listening = false,
 		Active = false,
 	}
+	if not config.Hidden then self.Window:_RegisterSearch(config.Name, row) end
 	function bind:Set(key)
 		if typeof(key) ~= "EnumItem" or key.EnumType ~= Enum.KeyCode then return false end
 		self.Key = key
 		local text = key == Enum.KeyCode.Unknown and "None" or key.Name
 		button.Text = text
 		if self.DisplayButton then self.DisplayButton.Text = text end
+		self.Window:_RefreshKeybindHud()
 		return true
 	end
 	function bind:Get() return self.Key end
@@ -1025,6 +1612,7 @@ function SectionMethods:AddKeybind(config)
 		if mode ~= "Toggle" and mode ~= "Hold" then return false end
 		self.Mode = mode
 		if self.ModeButton then self.ModeButton.Text = mode end
+		self.Window:_RefreshKeybindHud()
 		return true
 	end
 	function bind:Listen()
@@ -1040,11 +1628,13 @@ function SectionMethods:AddKeybind(config)
 			self.Active = not self.Active
 		end
 		invoke(self.Callback, self.Active, self.Key)
+		self.Window:_RefreshKeybindHud()
 	end
 	function bind:_Released()
 		if self.Mode == "Hold" and self.Active then
 			self.Active = false
 			invoke(self.Callback, false, self.Key)
+			self.Window:_RefreshKeybindHud()
 		end
 	end
 	function bind:Destroy()
@@ -1052,6 +1642,7 @@ function SectionMethods:AddKeybind(config)
 		for index, item in ipairs(self.Window.Keybinds) do
 			if item == self then table.remove(self.Window.Keybinds, index) break end
 		end
+		self.Window:_RefreshKeybindHud()
 	end
 	bind.Window = self.Window
 	button.MouseButton1Click:Connect(function() bind:Listen() end)
@@ -1064,11 +1655,20 @@ function SectionMethods:AddKeybind(config)
 		else
 			bind:Set(input.KeyCode)
 		end
-		if bind.Popup then bind.Popup.Visible = false end
+		if bind.Popup then
+			if bind.PopupScale then
+				tween(bind.PopupScale, 0.2, { Scale = 0 }, Enum.EasingStyle.Quart).Completed:Once(function()
+					if bind.Popup then bind.Popup.Visible = false end
+				end)
+			else
+				bind.Popup.Visible = false
+			end
+		end
 	end)
 	row.Destroying:Connect(function() capture:Disconnect() end)
 	table.insert(self.Window.Keybinds, bind)
 	bind:Set(bind.Key)
+	self.Window:_RefreshKeybindHud()
 	return bind
 end
 
