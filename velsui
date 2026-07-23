@@ -1764,7 +1764,12 @@ function VelUI:CreateWindow(opts)
 	end)
 
 	if opts.Draggable ~= false then
+		local SIDEBAR_OVERHANG = 28
 		local draggingWindow, dragStart, windowStart = false
+		local function clampRange(v, lo, hi)
+			if lo > hi then return (lo + hi) / 2 end
+			return math.clamp(v, lo, hi)
+		end
 		sidebar.InputBegan:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 then
 				draggingWindow, dragStart, windowStart = true, input.Position, window.Position
@@ -1773,9 +1778,18 @@ function VelUI:CreateWindow(opts)
 		UserInputService.InputChanged:Connect(function(input)
 			if draggingWindow and input.UserInputType == Enum.UserInputType.MouseMovement then
 				local delta = input.Position - dragStart
+				local screen = gui.AbsoluteSize
+				local size = window.AbsoluteSize
+				local halfW, halfH = size.X / 2, size.Y / 2
+				local baseX = windowStart.X.Scale * screen.X
+				local baseY = windowStart.Y.Scale * screen.Y
+				local absX = baseX + windowStart.X.Offset + delta.X
+				local absY = baseY + windowStart.Y.Offset + delta.Y
+				absX = clampRange(absX, halfW + SIDEBAR_OVERHANG, screen.X - halfW)
+				absY = clampRange(absY, halfH, screen.Y - halfH)
 				window.Position = UDim2.new(
-					windowStart.X.Scale, windowStart.X.Offset + delta.X,
-					windowStart.Y.Scale, windowStart.Y.Offset + delta.Y
+					windowStart.X.Scale, absX - baseX,
+					windowStart.Y.Scale, absY - baseY
 				)
 			end
 		end)
