@@ -231,19 +231,43 @@ function VelUI:CreateWindow(opts)
 		BackgroundTransparency = 1,
 		Parent = sidebar,
 	})
-	create("Frame", {
+	local function assetUrl(v)
+		if type(v) == "number" then return "rbxassetid://" .. v end
+		if type(v) == "string" then
+			if v:match("^%d+$") then return "rbxassetid://" .. v end
+			return v
+		end
+		return nil
+	end
+	local logoImage = opts.LogoImage
+	if logoImage == nil then logoImage = "rbxassetid://123774155542208" end
+	logoImage = logoImage and assetUrl(logoImage) or nil
+	local logoBox = create("Frame", {
 		Size = UDim2.fromOffset(44, 44),
 		BackgroundColor3 = C.Accent,
 		BorderSizePixel = 0,
 		Parent = brand,
-	}, { corner(14), create("TextLabel", {
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		Text = opts.Logo or "A",
-		TextColor3 = C.Text,
-		TextSize = 24,
-		FontFace = Bold,
-	}) })
+	}, { corner(14) })
+	if logoImage then
+		create("ImageLabel", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			Image = logoImage,
+			Parent = logoBox,
+		}, { corner(14) })
+	else
+		create("TextLabel", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			Text = opts.Logo or "A",
+			TextColor3 = C.Text,
+			TextSize = 24,
+			FontFace = Bold,
+			Parent = logoBox,
+		})
+	end
 	create("TextLabel", {
 		Position = UDim2.fromOffset(55, 2),
 		Size = UDim2.new(1, -55, 0, 24),
