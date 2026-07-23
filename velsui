@@ -287,7 +287,7 @@ function VelUI:CreateWindow(opts)
 		Position = UDim2.fromOffset(55, 2),
 		Size = UDim2.new(1, -55, 0, 24),
 		BackgroundTransparency = 1,
-		Text = opts.Title or "TVL2",
+		Text = opts.Title or "Vampire Legends 2",
 		TextColor3 = C.Text,
 		TextSize = 18,
 		FontFace = Bold,
@@ -383,8 +383,8 @@ function VelUI:CreateWindow(opts)
 	local settingsButton = iconButton(-106, Icons.Settings)
 
 	local pageHolder = create("Frame", {
-		Position = UDim2.fromOffset(26, 92),
-		Size = UDim2.new(1, -64, 1, -116),
+		Position = UDim2.fromOffset(20, 92),
+		Size = UDim2.new(1, -44, 1, -116),
 		BackgroundTransparency = 1,
 		ClipsDescendants = true,
 		Parent = content,
@@ -533,7 +533,7 @@ function VelUI:CreateWindow(opts)
 
 	local function section(parent, heading, description, iconAsset)
 		local holder = create("Frame", {
-			Size = UDim2.new(1, -6, 0, 0),
+			Size = UDim2.new(1, -2, 0, 0),
 			AutomaticSize = Enum.AutomaticSize.Y,
 			BackgroundColor3 = C.Panel,
 			BorderSizePixel = 0,
