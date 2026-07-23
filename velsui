@@ -899,16 +899,57 @@ function WindowMethods:SelectTab(tab)
 	tween(self.HeaderDescription, 0.5, { TextTransparency = 0 }, Enum.EasingStyle.Sine)
 end
 
+function WindowMethods:_Morph(source, startPosition, startSize, endPosition, endSize, duration, endCorner)
+	if not source or not source.Parent then return nil end
+	if self.ActiveMorph and self.ActiveMorph.Parent then self.ActiveMorph:Destroy() end
+	local morph = source:Clone()
+	morph.AnchorPoint = Vector2.new(0.5, 0.5)
+	morph.Position = UDim2.fromOffset(startPosition.X, startPosition.Y)
+	morph.Size = UDim2.fromOffset(startSize.X, startSize.Y)
+	morph.Visible = true
+	morph.ClipsDescendants = true
+	morph.AutomaticSize = Enum.AutomaticSize.None
+	morph.ZIndex = 100
+	morph.Parent = self.ScreenGui
+	for _, object in ipairs(morph:GetDescendants()) do
+		if object:IsA("GuiObject") then object.ZIndex = 100 end
+	end
+	local scale = morph:FindFirstChildOfClass("UIScale")
+	if scale then scale:Destroy() end
+	local cornerObject = morph:FindFirstChildOfClass("UICorner")
+	if cornerObject then
+		tween(cornerObject, duration, { CornerRadius = UDim.new(0, endCorner or 26) }, Enum.EasingStyle.Quint)
+	end
+	tween(morph, duration, {
+		Position = UDim2.fromOffset(endPosition.X, endPosition.Y),
+		Size = UDim2.fromOffset(endSize.X, endSize.Y),
+	}, Enum.EasingStyle.Quint).Completed:Once(function()
+		if self.ActiveMorph == morph then self.ActiveMorph = nil end
+		if morph.Parent then morph:Destroy() end
+	end)
+	self.ActiveMorph = morph
+	return morph
+end
+
 function WindowMethods:Toggle(value)
 	if value == nil then value = not self.Open end
 	self.Open = value
 	local dockCentre = UDim2.new(1, -42, 0.5, 0)
+	local camera = workspace.CurrentCamera
+	local viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
+	local dockSize = Vector2.new(self.DockTargetSize.X.Offset, self.DockTargetSize.Y.Offset)
+	local dockPosition = Vector2.new(viewport.X - 42, viewport.Y * 0.5)
 	if value then
+		local sidebarSize = self.ExpandedSidebarSize or self.Sidebar.AbsoluteSize
+		local sidebarPosition = self.ExpandedSidebarPosition or (
+			self.Sidebar.AbsolutePosition + self.Sidebar.AbsoluteSize * 0.5
+		)
+		local morphSource = self.Dock
+		morphSource.Size = self.DockTargetSize
+		morphSource.Visible = true
+		self:_Morph(morphSource, dockPosition, dockSize, sidebarPosition, sidebarSize, 0.44, 28)
+		morphSource.Visible = false
 		self.Frame.Visible = true
-		self.Dock.Visible = true
-		tween(self.Dock, 0.2, { Size = UDim2.fromOffset(0, 0) }, Enum.EasingStyle.Quart).Completed:Once(function()
-			if self.Open and self.Dock.Parent then self.Dock.Visible = false end
-		end)
 		self.Frame.Size = self.OriginalSize
 		self.Frame.Position = dockCentre
 		self.Scale.Scale = 0.05
@@ -917,6 +958,11 @@ function WindowMethods:Toggle(value)
 		tween(self.Scale, 0.44, { Scale = 1 }, Enum.EasingStyle.Back)
 		tween(self.Frame, 0.44, { Position = self.OriginalPosition }, Enum.EasingStyle.Quint)
 	else
+		local expandedSize = self.Sidebar.AbsoluteSize
+		local expandedPosition = self.Sidebar.AbsolutePosition + expandedSize * 0.5
+		self.ExpandedSidebarSize = expandedSize
+		self.ExpandedSidebarPosition = expandedPosition
+		self:_Morph(self.Sidebar, expandedPosition, expandedSize, dockPosition, dockSize, 0.36, 26)
 		tween(self.Backdrop, 0.32, { BackgroundTransparency = 1 })
 		tween(self.Scale, 0.3, { Scale = 0.05 }, Enum.EasingStyle.Quint)
 		tween(self.Frame, 0.3, { Position = dockCentre }, Enum.EasingStyle.Quint).Completed:Once(function()
@@ -926,9 +972,13 @@ function WindowMethods:Toggle(value)
 				self.Frame.Position = self.OriginalPosition
 			end
 		end)
-		self.Dock.Visible = true
-		self.Dock.Size = UDim2.fromOffset(20, 40)
-		tween(self.Dock, 0.36, { Size = self.DockTargetSize }, Enum.EasingStyle.Back)
+		self.Dock.Visible = false
+		task.delay(0.34, function()
+			if not self.Open and self.Dock.Parent then
+				self.Dock.Size = self.DockTargetSize
+				self.Dock.Visible = true
+			end
+		end)
 	end
 end
 
