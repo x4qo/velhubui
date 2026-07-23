@@ -232,19 +232,15 @@ function VelUI:CreateWindow(opts)
 		Parent = sidebar,
 	})
 	local function assetUrl(v)
-		if type(v) == "number" then
-			return string.format("rbxthumb://type=Asset&id=%d&w=150&h=150", v)
-		end
+		if type(v) == "number" then return "rbxassetid://" .. v end
 		if type(v) == "string" then
-			if v:match("^%d+$") then
-				return string.format("rbxthumb://type=Asset&id=%s&w=150&h=150", v)
-			end
+			if v:match("^%d+$") then return "rbxassetid://" .. v end
 			return v
 		end
 		return nil
 	end
 	local logoImage = opts.LogoImage
-	if logoImage == nil then logoImage = 140646434534365 end
+	if logoImage == nil then logoImage = 117795724808911 end
 	logoImage = logoImage and assetUrl(logoImage) or nil
 	local logoBox = create("Frame", {
 		Size = UDim2.fromOffset(44, 44),
