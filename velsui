@@ -613,6 +613,136 @@ function VelUI:CreateWindow(opts)
 		})
 	end
 
+	local NOTIF_WIDTH = 268
+	local notifHolder = create("Frame", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -16, 0, 16),
+		Size = UDim2.fromOffset(NOTIF_WIDTH, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		ZIndex = 60,
+		Parent = gui,
+	}, {
+		create("UIListLayout", {
+			Padding = UDim.new(0, 8),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			HorizontalAlignment = Enum.HorizontalAlignment.Right,
+			VerticalAlignment = Enum.VerticalAlignment.Top,
+		}),
+	})
+	local notifOrder = 0
+
+	local function notify(title, body, duration)
+		notifOrder += 1
+		local wrapper = create("Frame", {
+			Size = UDim2.fromOffset(NOTIF_WIDTH, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			BackgroundTransparency = 1,
+			ClipsDescendants = false,
+			LayoutOrder = notifOrder,
+			ZIndex = 60,
+			Parent = notifHolder,
+		})
+		local card = create("Frame", {
+			Size = UDim2.new(1, 0, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			Position = UDim2.fromOffset(NOTIF_WIDTH + 24, 0),
+			BackgroundColor3 = C.Panel,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			ZIndex = 60,
+			Parent = wrapper,
+		}, {
+			corner(12),
+			create("UIStroke", {
+				Color = C.Line,
+				Thickness = 1,
+				Transparency = 1,
+				ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			}),
+			create("UIPadding", {
+				PaddingTop = UDim.new(0, 12), PaddingBottom = UDim.new(0, 12),
+				PaddingLeft = UDim.new(0, 15), PaddingRight = UDim.new(0, 14),
+			}),
+			create("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }),
+		})
+		local accentBar = create("Frame", {
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, 0, 0.5, 0),
+			Size = UDim2.fromOffset(3, 26),
+			BackgroundColor3 = C.Accent,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			ZIndex = 61,
+			Parent = card,
+		}, { corner(2) })
+		table.insert(accentListeners, function(color) accentBar.BackgroundColor3 = color end)
+		local titleLabel = create("TextLabel", {
+			Size = UDim2.new(1, 0, 0, 19),
+			BackgroundTransparency = 1,
+			Text = title,
+			TextColor3 = C.Text,
+			TextTransparency = 1,
+			TextSize = 15,
+			FontFace = Bold,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			LayoutOrder = 1,
+			ZIndex = 61,
+			Parent = card,
+		})
+		local bodyLabel = create("TextLabel", {
+			Size = UDim2.new(1, 0, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			BackgroundTransparency = 1,
+			Text = body or "",
+			TextColor3 = C.Muted,
+			TextTransparency = 1,
+			TextSize = 13,
+			FontFace = Medium,
+			TextWrapped = true,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextYAlignment = Enum.TextYAlignment.Top,
+			LayoutOrder = 2,
+			ZIndex = 61,
+			Parent = card,
+		})
+
+		local stroke = card:FindFirstChildOfClass("UIStroke")
+		tween(card, 0.5, { Position = UDim2.fromOffset(0, 0), BackgroundTransparency = 0 }, Enum.EasingStyle.Quint)
+		tween(stroke, 0.5, { Transparency = 0.35 }, Enum.EasingStyle.Quint)
+		tween(accentBar, 0.5, { BackgroundTransparency = 0 }, Enum.EasingStyle.Quint)
+		tween(titleLabel, 0.5, { TextTransparency = 0 }, Enum.EasingStyle.Sine)
+		tween(bodyLabel, 0.55, { TextTransparency = 0 }, Enum.EasingStyle.Sine)
+
+		local dismissed = false
+		local function dismiss()
+			if dismissed then return end
+			dismissed = true
+			local h = wrapper.AbsoluteSize.Y
+			tween(card, 0.4, { Position = UDim2.fromOffset(NOTIF_WIDTH + 24, 0), BackgroundTransparency = 1 }, Enum.EasingStyle.Quint)
+			tween(stroke, 0.3, { Transparency = 1 })
+			tween(accentBar, 0.3, { BackgroundTransparency = 1 })
+			tween(titleLabel, 0.3, { TextTransparency = 1 })
+			tween(bodyLabel, 0.3, { TextTransparency = 1 })
+			task.delay(0.22, function()
+				wrapper.AutomaticSize = Enum.AutomaticSize.None
+				wrapper.Size = UDim2.fromOffset(NOTIF_WIDTH, h)
+				tween(wrapper, 0.34, { Size = UDim2.fromOffset(NOTIF_WIDTH, 0) }, Enum.EasingStyle.Quint).Completed:Once(function()
+					wrapper:Destroy()
+				end)
+			end)
+		end
+		task.delay(duration or 2.6, dismiss)
+		return { Dismiss = dismiss }
+	end
+
+	local notifyEnabled = opts.Notifications ~= false
+	local function notifyToggle(label, enabled)
+		if not notifyEnabled then return end
+		notify(label, label .. " has been " .. (enabled and "enabled" or "disabled"))
+	end
+
 	local promptKeybind
 
 	local function toggle(parent, label, description, default, style, order, keybindable, onChanged, flagName)
