@@ -323,6 +323,20 @@ function VelUI:CreateWindow(opts)
 		Parent = sidebar,
 	}, { create("UIListLayout", { Padding = UDim.new(0, 9) }) })
 
+	local TAB_HEIGHT, TAB_GAP = 48, 9
+	local tabIndex = 0
+	local tabIndicator = create("Frame", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 5, 0, 0),
+		Size = UDim2.fromOffset(3, 20),
+		BackgroundColor3 = C.Accent,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = 6,
+		Parent = tabs,
+	}, { corner(2) })
+	table.insert(accentListeners, function(color) tabIndicator.BackgroundColor3 = color end)
+
 	local content = create("Frame", {
 		Position = UDim2.fromOffset(190, 0),
 		Size = UDim2.new(1, -190, 1, 0),
@@ -480,7 +494,17 @@ function VelUI:CreateWindow(opts)
 			tween(data.Button, 0.2, { BackgroundColor3 = selected and C.Control or C.Sidebar })
 			tween(data.Icon, 0.2, { ImageColor3 = selected and C.Accent or C.Muted })
 			tween(data.Label, 0.2, { TextColor3 = selected and C.Text or C.Muted })
-			tween(data.Indicator, 0.3, { Size = UDim2.fromOffset(3, selected and 20 or 0) }, Enum.EasingStyle.Back)
+		end
+
+		local sel = tabButtons[name]
+		if sel then
+			local targetY = sel.Index * (TAB_HEIGHT + TAB_GAP) + TAB_HEIGHT / 2
+			if tabIndicator.BackgroundTransparency > 0 then
+				tabIndicator.Position = UDim2.new(0, 5, 0, targetY)
+				tween(tabIndicator, 0.25, { BackgroundTransparency = 0 }, Enum.EasingStyle.Sine)
+			else
+				tween(tabIndicator, 0.4, { Position = UDim2.new(0, 5, 0, targetY) }, Enum.EasingStyle.Quint)
+			end
 		end
 		activePage = name
 		title.Text = name
@@ -521,16 +545,8 @@ function VelUI:CreateWindow(opts)
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Parent = btn,
 		})
-		local indicator = create("Frame", {
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -12, 0.5, 0),
-			Size = UDim2.fromOffset(3, 0),
-			BackgroundColor3 = C.Accent,
-			BorderSizePixel = 0,
-			Parent = btn,
-		}, { corner(2) })
-		table.insert(accentListeners, function(color) indicator.BackgroundColor3 = color end)
-		tabButtons[name] = { Button = btn, Icon = icon, Label = label, Indicator = indicator }
+		tabButtons[name] = { Button = btn, Icon = icon, Label = label, Index = tabIndex }
+		tabIndex += 1
 		btn.MouseButton1Click:Connect(function()
 			haptic(0.12)
 			selectPage(name)
