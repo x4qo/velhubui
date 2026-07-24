@@ -666,17 +666,6 @@ function VelUI:CreateWindow(opts)
 			}),
 			create("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }),
 		})
-		local accentBar = create("Frame", {
-			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.new(0, 0, 0.5, 0),
-			Size = UDim2.fromOffset(3, 26),
-			BackgroundColor3 = C.Accent,
-			BackgroundTransparency = 1,
-			BorderSizePixel = 0,
-			ZIndex = 61,
-			Parent = card,
-		}, { corner(2) })
-		table.insert(accentListeners, function(color) accentBar.BackgroundColor3 = color end)
 		local titleLabel = create("TextLabel", {
 			Size = UDim2.new(1, 0, 0, 19),
 			BackgroundTransparency = 1,
@@ -711,7 +700,6 @@ function VelUI:CreateWindow(opts)
 		local stroke = card:FindFirstChildOfClass("UIStroke")
 		tween(card, 0.5, { Position = UDim2.fromOffset(0, 0), BackgroundTransparency = 0 }, Enum.EasingStyle.Quint)
 		tween(stroke, 0.5, { Transparency = 0.35 }, Enum.EasingStyle.Quint)
-		tween(accentBar, 0.5, { BackgroundTransparency = 0 }, Enum.EasingStyle.Quint)
 		tween(titleLabel, 0.5, { TextTransparency = 0 }, Enum.EasingStyle.Sine)
 		tween(bodyLabel, 0.55, { TextTransparency = 0 }, Enum.EasingStyle.Sine)
 
@@ -722,7 +710,6 @@ function VelUI:CreateWindow(opts)
 			local h = wrapper.AbsoluteSize.Y
 			tween(card, 0.4, { Position = UDim2.fromOffset(NOTIF_WIDTH + 24, 0), BackgroundTransparency = 1 }, Enum.EasingStyle.Quint)
 			tween(stroke, 0.3, { Transparency = 1 })
-			tween(accentBar, 0.3, { BackgroundTransparency = 1 })
 			tween(titleLabel, 0.3, { TextTransparency = 1 })
 			tween(bodyLabel, 0.3, { TextTransparency = 1 })
 			task.delay(0.22, function()
@@ -878,6 +865,7 @@ function VelUI:CreateWindow(opts)
 			if flagName then flags[flagName] = enabled end
 			if onChanged then task.spawn(onChanged, enabled) end
 			if refreshKeybindHud then refreshKeybindHud() end
+			notifyToggle(label, enabled)
 		end
 
 		row.MouseButton1Click:Connect(function()
@@ -2172,6 +2160,7 @@ function VelUI:CreateWindow(opts)
 			}, Enum.EasingStyle.Back)
 			if o.Flag then flags[o.Flag] = enabled end
 			if o.Callback then task.spawn(o.Callback, enabled) end
+			notifyToggle(o.Text or "ESP", enabled)
 		end
 
 		row.MouseButton1Click:Connect(function()
@@ -2775,6 +2764,11 @@ function VelUI:CreateWindow(opts)
 	end
 
 	function Window:Select(name) selectPage(name) end
+	function Window:Notify(o)
+		o = o or {}
+		return notify(o.Title or "Notification", o.Body or o.Content or "", o.Duration)
+	end
+	function Window:SetNotifications(on) notifyEnabled = on and true or false end
 	function Window:SetAccent(color)
 		C.Accent = color
 		for _, fn in ipairs(accentListeners) do fn(color) end
