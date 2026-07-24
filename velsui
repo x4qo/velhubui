@@ -7,9 +7,9 @@ local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 local DEFAULT_THEME = {
-	Background = Color3.fromRGB(28, 30, 34),
-	Sidebar = Color3.fromRGB(22, 24, 27),
-	Panel = Color3.fromRGB(41, 44, 49),
+	Background = Color3.fromRGB(31, 33, 37),
+	Sidebar = Color3.fromRGB(40, 43, 49),
+	Panel = Color3.fromRGB(47, 50, 56),
 	PanelHover = Color3.fromRGB(55, 59, 66),
 	Control = Color3.fromRGB(63, 67, 76),
 	Line = Color3.fromRGB(76, 81, 91),
