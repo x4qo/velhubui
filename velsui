@@ -7,9 +7,9 @@ local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 local DEFAULT_THEME = {
-	Background = Color3.fromRGB(31, 33, 37),
-	Sidebar = Color3.fromRGB(40, 43, 49),
-	Panel = Color3.fromRGB(47, 50, 56),
+	Background = Color3.fromRGB(24, 27, 32),
+	Sidebar = Color3.fromRGB(36, 40, 48),
+	Panel = Color3.fromRGB(48, 54, 64),
 	PanelHover = Color3.fromRGB(55, 59, 66),
 	Control = Color3.fromRGB(63, 67, 76),
 	Line = Color3.fromRGB(76, 81, 91),
@@ -114,6 +114,25 @@ function VelUI:CreateWindow(opts)
 	local accentListeners = {}
 	local keybinds = {}
 	local searchable = {}
+	local flags = {}
+	local animationsEnabled = true
+	local keybindPanelEnabled = true
+
+	local baseTween = tween
+	local noopSignal = {
+		Once = function(_, fn) task.defer(fn) end,
+		Connect = function(_, fn) task.defer(fn) end,
+	}
+	local noopTween = { Completed = noopSignal, Cancel = function() end, Play = function() end }
+	local function tween(object, duration, properties, style)
+		if not animationsEnabled then
+			for k, v in pairs(properties) do
+				pcall(function() object[k] = v end)
+			end
+			return noopTween
+		end
+		return baseTween(object, duration, properties, style)
+	end
 	local pages, tabButtons = {}, {}
 	local tabDescriptions = {}
 	local activePage = nil
@@ -596,7 +615,7 @@ function VelUI:CreateWindow(opts)
 
 	local promptKeybind
 
-	local function toggle(parent, label, description, default, style, order, keybindable, onChanged)
+	local function toggle(parent, label, description, default, style, order, keybindable, onChanged, flagName)
 		local rightInset = keybindable and 98 or 52
 		local row = create("TextButton", {
 			Size = UDim2.new(1, 0, 0, 51),
@@ -726,6 +745,7 @@ function VelUI:CreateWindow(opts)
 					Position = enabled and UDim2.new(1, -13, 0.5, 0) or UDim2.new(0, 13, 0.5, 0),
 				}, Enum.EasingStyle.Back)
 			end
+			if flagName then flags[flagName] = enabled end
 			if onChanged then task.spawn(onChanged, enabled) end
 			if refreshKeybindHud then refreshKeybindHud() end
 		end
@@ -735,6 +755,7 @@ function VelUI:CreateWindow(opts)
 			flip()
 		end)
 
+		if flagName then flags[flagName] = enabled end
 		local handle = {
 			Frame = row,
 			Get = function() return enabled end,
@@ -890,6 +911,7 @@ function VelUI:CreateWindow(opts)
 			haptic(0.1)
 			if keybindEntry then keybindEntry.mode = value end
 			highlightMode(value)
+			if keybindEntry and keybindEntry.onChanged then keybindEntry.onChanged() end
 			if refreshKeybindHud then refreshKeybindHud() end
 		end)
 		return mb
@@ -952,6 +974,7 @@ function VelUI:CreateWindow(opts)
 		if keybindEntry then keybindEntry.key = nil end
 		keybindListening = false
 		refreshKeyButton()
+		if keybindEntry and keybindEntry.onChanged then keybindEntry.onChanged() end
 		if refreshKeybindHud then refreshKeybindHud() end
 	end)
 	keybindShade.MouseButton1Click:Connect(function() hideKeybind() end)
@@ -966,6 +989,7 @@ function VelUI:CreateWindow(opts)
 			end
 			keybindListening = false
 			refreshKeyButton()
+			if keybindEntry.onChanged then keybindEntry.onChanged() end
 			if refreshKeybindHud then refreshKeybindHud() end
 			return
 		end
@@ -1104,16 +1128,30 @@ function VelUI:CreateWindow(opts)
 		local visible = 0
 		for i, entry in ipairs(keybinds) do
 			local row = hudRows[entry]
-			if entry.key then
+			local key = entry.key
+			if entry.getKey then
+				local ok, k = pcall(entry.getKey)
+				key = ok and k or nil
+			end
+			if key then
 				if not row then
 					row = createHudRow(2 + i)
 					hudRows[entry] = row
 				end
+				local mode = entry.mode
+				if entry.getMode then
+					local ok, m = pcall(entry.getMode)
+					if ok and m then mode = m end
+				end
 				row.Frame.Visible = true
 				row.Name.Text = entry.name
-				row.Mode.Text = (entry.mode == "Hold") and "Hold" or "Toggle"
-				row.Key.Text = entry.key.Name
-				local on = entry.isOn and entry.isOn() or false
+				row.Mode.Text = (mode == "Hold") and "Hold" or "Toggle"
+				row.Key.Text = key.Name
+				local on = false
+				if entry.isOn then
+					local ok, v = pcall(entry.isOn)
+					on = ok and v or false
+				end
 				tween(row.Name, 0.18, { TextColor3 = on and C.Text or C.Muted })
 				tween(row.Pill, 0.18, { BackgroundColor3 = on and C.Accent or PILL_OFF })
 				tween(row.Key, 0.18, { TextColor3 = on and Color3.new(1, 1, 1) or C.Muted })
@@ -1122,7 +1160,7 @@ function VelUI:CreateWindow(opts)
 				row.Frame.Visible = false
 			end
 		end
-		keybindHud.Visible = visible > 0
+		keybindHud.Visible = keybindPanelEnabled and visible > 0
 	end
 
 	local function button(parent, text, order, callback)
@@ -1197,7 +1235,16 @@ function VelUI:CreateWindow(opts)
 		local min = o.Min or 0
 		local max = o.Max or 100
 		local suffix = o.Suffix or "%"
-		local function toDisplay(v) return math.floor(v + 0.5) .. suffix end
+		local decimals = tonumber(o.Rounding) or tonumber(o.Decimals) or 0
+		local function roundTo(v)
+			if decimals <= 0 then return math.floor(v + 0.5) end
+			local m = 10 ^ decimals
+			return math.floor(v * m + 0.5) / m
+		end
+		local function toDisplay(v)
+			if decimals > 0 then return string.format("%." .. decimals .. "f", v) .. suffix end
+			return math.floor(v + 0.5) .. suffix
+		end
 		local current = math.clamp(value, min, max)
 
 		local row = create("Frame", {
@@ -1269,7 +1316,8 @@ function VelUI:CreateWindow(opts)
 			fillTween:Play()
 			tween(thumb, 0.18, { Position = UDim2.fromScale(ratio, 0.5) }, Enum.EasingStyle.Quint)
 			valueText.Text = toDisplay(current)
-			if fire and callback then task.spawn(callback, math.floor(current + 0.5)) end
+			if o.Flag then flags[o.Flag] = roundTo(current) end
+			if fire and callback then task.spawn(callback, roundTo(current)) end
 		end
 		local function update(input)
 			applyRatio((input.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, true)
@@ -1292,9 +1340,10 @@ function VelUI:CreateWindow(opts)
 			end
 		end)
 		table.insert(searchable, { Name = label:lower(), Object = row })
+		if o.Flag then flags[o.Flag] = roundTo(current) end
 		return {
 			Frame = row,
-			Get = function() return math.floor(current + 0.5) end,
+			Get = function() return roundTo(current) end,
 			Set = function(_, v)
 				applyRatio((math.clamp(v, min, max) - min) / (max - min), true)
 			end,
@@ -1334,7 +1383,7 @@ function VelUI:CreateWindow(opts)
 		end
 		local optionLabel = create("TextLabel", {
 			Position = UDim2.fromOffset(textLeft, 0),
-			Size = UDim2.new(1, -textLeft - 12, 1, 0),
+			Size = UDim2.new(1, -textLeft - 34, 1, 0),
 			BackgroundTransparency = 1,
 			Text = text,
 			TextColor3 = C.Muted,
@@ -1344,6 +1393,25 @@ function VelUI:CreateWindow(opts)
 			TextTruncate = Enum.TextTruncate.AtEnd,
 			Parent = option,
 		})
+		local tick = create("TextLabel", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -12, 0.5, 0),
+			Size = UDim2.fromOffset(16, 16),
+			BackgroundTransparency = 1,
+			Text = "✓",
+			TextColor3 = C.Accent,
+			TextSize = 15,
+			FontFace = SemiBold,
+			TextTransparency = 1,
+			Parent = option,
+		})
+		table.insert(accentListeners, function(color) tick.TextColor3 = color end)
+		local isSelected = false
+		local function setSelected(on)
+			isSelected = on and true or false
+			tick.TextTransparency = isSelected and 0 or 1
+			optionLabel.TextColor3 = isSelected and C.Text or C.Muted
+		end
 		option.MouseEnter:Connect(function()
 			tween(option, 0.16, { BackgroundTransparency = 0, BackgroundColor3 = C.Control })
 			tween(optionLabel, 0.16, { TextColor3 = C.Text })
@@ -1351,14 +1419,14 @@ function VelUI:CreateWindow(opts)
 		end)
 		option.MouseLeave:Connect(function()
 			tween(option, 0.16, { BackgroundTransparency = 0.4, BackgroundColor3 = C.PanelHover })
-			tween(optionLabel, 0.16, { TextColor3 = C.Muted })
+			tween(optionLabel, 0.16, { TextColor3 = isSelected and C.Text or C.Muted })
 			tween(bar, 0.16, { Size = UDim2.fromOffset(3, 0) })
 		end)
 		option.MouseButton1Click:Connect(function()
 			haptic(0.12)
 			onClick()
 		end)
-		return option
+		return option, setSelected
 	end
 
 	local function dropdown(parent, order, o)
@@ -1408,29 +1476,87 @@ function VelUI:CreateWindow(opts)
 			create("UIPadding", { PaddingLeft = UDim.new(0, 8) }),
 		})
 
+		local multi = o.Multi and true or false
 		local rowStride = 34 + 4
-		local openHeight = 48 + (#options * rowStride) + 6
+		local listHeight = #options * rowStride
+		local maxHeight = tonumber(o.MaxHeight)
+		if maxHeight and maxHeight > 0 then
+			listHeight = math.min(listHeight, maxHeight * rowStride)
+		end
+		local openHeight = 48 + listHeight + 6
+		if maxHeight and maxHeight > 0 and #options > maxHeight then
+			list.Size = UDim2.new(1, -16, 0, listHeight)
+			list.AutomaticSize = Enum.AutomaticSize.None
+		end
 		local isOpen = false
-		local currentValue = nil
+		local currentValue = multi and {} or nil
+		local setters = {}
+
 		local function close()
 			isOpen = false
 			tween(arrow, 0.22, { Rotation = 0 })
 			tween(frame, 0.28, { Size = UDim2.new(1, 0, 0, 43) }, Enum.EasingStyle.Quint)
 		end
-		for _, choice in ipairs(options) do
-			local lbl, val = labelOf(choice), valueOf(choice)
-			dropdownOption(list, lbl, nil, function()
-				selected.Text = lbl
-				currentValue = val
-				close()
-				if o.Callback then task.spawn(o.Callback, val) end
-			end)
-		end
-		if o.Default then
-			for _, c in ipairs(options) do
-				if labelOf(c) == o.Default then currentValue = valueOf(c) end
+		local function refreshText()
+			if multi then
+				local picked = {}
+				for _, c in ipairs(options) do
+					if currentValue[valueOf(c)] then picked[#picked + 1] = labelOf(c) end
+				end
+				selected.Text = (#picked > 0) and table.concat(picked, ", ") or (o.Placeholder or "None")
 			end
 		end
+		local function fire()
+			if o.Flag then flags[o.Flag] = currentValue end
+			if o.Callback then task.spawn(o.Callback, currentValue) end
+		end
+
+		for _, choice in ipairs(options) do
+			local lbl, val = labelOf(choice), valueOf(choice)
+			local _, setSel = dropdownOption(list, lbl, nil, function()
+				if multi then
+					currentValue[val] = (not currentValue[val]) or nil
+					setters[val](currentValue[val] ~= nil)
+					refreshText()
+					fire()
+				else
+					selected.Text = lbl
+					currentValue = val
+					for _, fn in pairs(setters) do fn(false) end
+					setters[val](true)
+					close()
+					fire()
+				end
+			end)
+			setters[val] = setSel
+		end
+
+		if o.Default ~= nil then
+			if multi then
+				local defaults = type(o.Default) == "table" and o.Default or { o.Default }
+				for _, d in ipairs(defaults) do
+					for _, c in ipairs(options) do
+						if labelOf(c) == d or valueOf(c) == d then
+							currentValue[valueOf(c)] = true
+							setters[valueOf(c)](true)
+						end
+					end
+				end
+				refreshText()
+			else
+				for _, c in ipairs(options) do
+					if labelOf(c) == o.Default or valueOf(c) == o.Default then
+						currentValue = valueOf(c)
+						selected.Text = labelOf(c)
+						setters[valueOf(c)](true)
+					end
+				end
+			end
+		elseif multi then
+			refreshText()
+		end
+		if o.Flag then flags[o.Flag] = currentValue end
+
 		selected.MouseButton1Click:Connect(function()
 			haptic(0.1)
 			isOpen = not isOpen
@@ -1441,15 +1567,482 @@ function VelUI:CreateWindow(opts)
 		return {
 			Frame = frame,
 			Get = function() return currentValue end,
-			Set = function(_, label)
-				for _, c in ipairs(options) do
-					if labelOf(c) == label then
-						selected.Text = label
-						currentValue = valueOf(c)
-						if o.Callback then task.spawn(o.Callback, currentValue) end
-						break
+			Set = function(_, v)
+				if multi then
+					currentValue = {}
+					local list2 = type(v) == "table" and v or { v }
+					for _, fn in pairs(setters) do fn(false) end
+					for _, d in ipairs(list2) do
+						for _, c in ipairs(options) do
+							if labelOf(c) == d or valueOf(c) == d then
+								currentValue[valueOf(c)] = true
+								setters[valueOf(c)](true)
+							end
+						end
+					end
+					refreshText()
+					fire()
+				else
+					for _, c in ipairs(options) do
+						if labelOf(c) == v or valueOf(c) == v then
+							selected.Text = labelOf(c)
+							currentValue = valueOf(c)
+							for _, fn in pairs(setters) do fn(false) end
+							setters[valueOf(c)](true)
+							fire()
+							break
+						end
 					end
 				end
+			end,
+		}
+	end
+
+	local function label(parent, order, o)
+		local text = o.Text or ""
+		local lbl = create("TextLabel", {
+			Size = UDim2.new(1, 0, 0, 18),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			BackgroundTransparency = 1,
+			Text = text,
+			TextColor3 = o.Muted and C.Muted or C.Text,
+			TextSize = o.Muted and 13 or 15,
+			FontFace = o.Bold and Bold or Medium,
+			TextWrapped = true,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextYAlignment = Enum.TextYAlignment.Top,
+			LayoutOrder = order,
+			Parent = parent,
+		})
+		table.insert(searchable, { Name = text:lower(), Object = lbl })
+		return { Frame = lbl, SetText = function(_, t) lbl.Text = t end }
+	end
+
+	local function textbox(parent, order, o)
+		local row = create("Frame", {
+			Size = UDim2.new(1, 0, 0, o.Text and 60 or 43),
+			BackgroundTransparency = 1,
+			LayoutOrder = order,
+			Parent = parent,
+		})
+		if o.Text then
+			create("TextLabel", {
+				Size = UDim2.new(1, 0, 0, 20),
+				BackgroundTransparency = 1,
+				Text = o.Text,
+				TextColor3 = C.Text,
+				TextSize = 15,
+				FontFace = Medium,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				Parent = row,
+			})
+		end
+		local shell = create("Frame", {
+			AnchorPoint = Vector2.new(0, 1),
+			Position = UDim2.new(0, 0, 1, 0),
+			Size = UDim2.new(1, 0, 0, 38),
+			BackgroundColor3 = C.Control,
+			BorderSizePixel = 0,
+			Parent = row,
+		}, { corner(10), stroke(C.Line) })
+		local box = create("TextBox", {
+			Size = UDim2.new(1, -22, 1, 0),
+			Position = UDim2.fromOffset(11, 0),
+			BackgroundTransparency = 1,
+			Text = o.Default or "",
+			PlaceholderText = o.Placeholder or "",
+			PlaceholderColor3 = C.Muted,
+			TextColor3 = C.Text,
+			TextSize = 14,
+			FontFace = Medium,
+			ClearTextOnFocus = false,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			Parent = shell,
+		})
+		box.Focused:Connect(function() tween(shell, 0.15, { BackgroundColor3 = C.PanelHover }) end)
+		box.FocusLost:Connect(function(enter)
+			tween(shell, 0.15, { BackgroundColor3 = C.Control })
+			if o.Flag then flags[o.Flag] = box.Text end
+			if o.Callback then task.spawn(o.Callback, box.Text, enter) end
+		end)
+		if o.Flag then flags[o.Flag] = box.Text end
+		table.insert(searchable, { Name = (o.Text or o.Placeholder or "textbox"):lower(), Object = row })
+		return {
+			Frame = row,
+			Box = box,
+			Get = function() return box.Text end,
+			Set = function(_, v)
+				box.Text = tostring(v or "")
+				if o.Flag then flags[o.Flag] = box.Text end
+				if o.Callback then task.spawn(o.Callback, box.Text, false) end
+			end,
+		}
+	end
+
+	local colorShade = create("TextButton", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Text = "",
+		AutoButtonColor = false,
+		Visible = false,
+		ZIndex = 50,
+		Parent = window,
+	})
+	local colorPop = create("Frame", {
+		AnchorPoint = Vector2.new(1, 0),
+		Size = UDim2.fromOffset(200, 196),
+		BackgroundColor3 = Color3.fromRGB(37, 40, 46),
+		BorderSizePixel = 0,
+		Active = true,
+		Visible = false,
+		ZIndex = 51,
+		Parent = window,
+	}, {
+		corner(13),
+		create("UIStroke", {
+			Color = Color3.fromRGB(96, 102, 114),
+			Thickness = 1,
+			Transparency = 0.15,
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		}),
+	})
+	local colorScale = create("UIScale", { Scale = 0, Parent = colorPop })
+	local svArea = create("Frame", {
+		Position = UDim2.fromOffset(12, 12),
+		Size = UDim2.fromOffset(176, 116),
+		BackgroundColor3 = Color3.fromRGB(255, 0, 0),
+		BorderSizePixel = 0,
+		ZIndex = 52,
+		Parent = colorPop,
+	}, {
+		corner(8),
+		create("Frame", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BorderSizePixel = 0,
+			ZIndex = 52,
+		}, {
+			corner(8),
+			create("UIGradient", {
+				Transparency = NumberSequence.new({
+					NumberSequenceKeypoint.new(0, 0),
+					NumberSequenceKeypoint.new(1, 1),
+				}),
+			}),
+		}),
+		create("Frame", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundColor3 = Color3.new(0, 0, 0),
+			BorderSizePixel = 0,
+			ZIndex = 53,
+		}, {
+			corner(8),
+			create("UIGradient", {
+				Rotation = 90,
+				Transparency = NumberSequence.new({
+					NumberSequenceKeypoint.new(0, 1),
+					NumberSequenceKeypoint.new(1, 0),
+				}),
+			}),
+		}),
+	})
+	local svCursor = create("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = UDim2.fromOffset(11, 11),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = 54,
+		Parent = svArea,
+	}, { corner(6), create("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 2, Transparency = 0 }) })
+	local hueBar = create("TextButton", {
+		Position = UDim2.fromOffset(12, 138),
+		Size = UDim2.fromOffset(176, 14),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		Text = "",
+		AutoButtonColor = false,
+		ZIndex = 52,
+		Parent = colorPop,
+	}, {
+		corner(7),
+		create("UIGradient", {
+			Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 0, 0)),
+				ColorSequenceKeypoint.new(0.17, Color3.fromRGB(255, 255, 0)),
+				ColorSequenceKeypoint.new(0.33, Color3.fromRGB(0, 255, 0)),
+				ColorSequenceKeypoint.new(0.50, Color3.fromRGB(0, 255, 255)),
+				ColorSequenceKeypoint.new(0.67, Color3.fromRGB(0, 0, 255)),
+				ColorSequenceKeypoint.new(0.83, Color3.fromRGB(255, 0, 255)),
+				ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 0, 0)),
+			}),
+		}),
+	})
+	local hueCursor = create("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0, 0.5),
+		Size = UDim2.fromOffset(6, 20),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		ZIndex = 53,
+		Parent = hueBar,
+	}, { corner(3), create("UIStroke", { Color = Color3.fromRGB(30, 30, 30), Thickness = 1, Transparency = 0.3 }) })
+	local colorPreview = create("Frame", {
+		Position = UDim2.fromOffset(12, 162),
+		Size = UDim2.fromOffset(56, 22),
+		BackgroundColor3 = Color3.fromRGB(255, 0, 0),
+		BorderSizePixel = 0,
+		ZIndex = 52,
+		Parent = colorPop,
+	}, { corner(6), stroke(C.Line) })
+	local colorHexBox = create("TextBox", {
+		Position = UDim2.fromOffset(76, 162),
+		Size = UDim2.fromOffset(112, 22),
+		BackgroundColor3 = C.Control,
+		BorderSizePixel = 0,
+		Text = "#FF0000",
+		TextColor3 = C.Text,
+		TextSize = 13,
+		FontFace = Medium,
+		ClearTextOnFocus = false,
+		ZIndex = 52,
+		Parent = colorPop,
+	}, { corner(6) })
+
+	local colorState = { h = 0, s = 1, v = 1, apply = nil, open = false }
+	local function colorFromState()
+		return Color3.fromHSV(colorState.h, colorState.s, colorState.v)
+	end
+	local function refreshColorPop()
+		local col = colorFromState()
+		svArea.BackgroundColor3 = Color3.fromHSV(colorState.h, 1, 1)
+		svCursor.Position = UDim2.fromScale(colorState.s, 1 - colorState.v)
+		hueCursor.Position = UDim2.fromScale(colorState.h, 0.5)
+		colorPreview.BackgroundColor3 = col
+		colorHexBox.Text = string.format("#%02X%02X%02X",
+			math.floor(col.R * 255 + 0.5), math.floor(col.G * 255 + 0.5), math.floor(col.B * 255 + 0.5))
+		if colorState.apply then colorState.apply(col) end
+	end
+	local function hideColor()
+		if not colorState.open then return end
+		colorState.open = false
+		tween(colorScale, 0.2, { Scale = 0 }, Enum.EasingStyle.Quart).Completed:Once(function()
+			if not colorState.open then
+				colorPop.Visible = false
+				colorShade.Visible = false
+			end
+		end)
+	end
+	colorShade.MouseButton1Click:Connect(hideColor)
+
+	local svDragging, hueDragging = false, false
+	svArea.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then svDragging = true end
+	end)
+	hueBar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then hueDragging = true end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			svDragging, hueDragging = false, false
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+		if svDragging then
+			colorState.s = math.clamp((input.Position.X - svArea.AbsolutePosition.X) / svArea.AbsoluteSize.X, 0, 1)
+			colorState.v = 1 - math.clamp((input.Position.Y - svArea.AbsolutePosition.Y) / svArea.AbsoluteSize.Y, 0, 1)
+			refreshColorPop()
+		elseif hueDragging then
+			colorState.h = math.clamp((input.Position.X - hueBar.AbsolutePosition.X) / hueBar.AbsoluteSize.X, 0, 1)
+			refreshColorPop()
+		end
+	end)
+	colorHexBox.FocusLost:Connect(function()
+		local hex = colorHexBox.Text:gsub("#", "")
+		if #hex == 6 then
+			local r = tonumber(hex:sub(1, 2), 16)
+			local g = tonumber(hex:sub(3, 4), 16)
+			local b = tonumber(hex:sub(5, 6), 16)
+			if r and g and b then
+				colorState.h, colorState.s, colorState.v = Color3.fromRGB(r, g, b):ToHSV()
+			end
+		end
+		refreshColorPop()
+	end)
+
+	local function colorpicker(parent, order, o)
+		local startColor = o.Default or C.Accent
+		local current = startColor
+		local row = create("TextButton", {
+			Size = UDim2.new(1, 0, 0, 38),
+			BackgroundTransparency = 1,
+			Text = "",
+			AutoButtonColor = false,
+			LayoutOrder = order,
+			Parent = parent,
+		})
+		create("TextLabel", {
+			Size = UDim2.new(1, -56, 1, 0),
+			BackgroundTransparency = 1,
+			Text = o.Text or "Colour",
+			TextColor3 = C.Text,
+			TextSize = 15,
+			FontFace = Medium,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Parent = row,
+		})
+		local swatch = create("Frame", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, 0, 0.5, 0),
+			Size = UDim2.fromOffset(44, 24),
+			BackgroundColor3 = startColor,
+			BorderSizePixel = 0,
+			Parent = row,
+		}, { corner(7), stroke(C.Line) })
+
+		local function apply(col, fire)
+			current = col
+			swatch.BackgroundColor3 = col
+			if o.Flag then flags[o.Flag] = col end
+			if fire ~= false and o.Callback then task.spawn(o.Callback, col) end
+		end
+		if o.Flag then flags[o.Flag] = current end
+
+		row.MouseButton1Click:Connect(function()
+			haptic(0.1)
+			if colorState.open and colorState.owner == row then
+				hideColor()
+				return
+			end
+			colorState.owner = row
+			colorState.h, colorState.s, colorState.v = current:ToHSV()
+			colorState.apply = function(col) apply(col, true) end
+			refreshColorPop()
+			local rel = swatch.AbsolutePosition - window.AbsolutePosition
+			colorPop.Position = UDim2.fromOffset(rel.X + swatch.AbsoluteSize.X, rel.Y + swatch.AbsoluteSize.Y + 6)
+			colorState.open = true
+			colorShade.Visible = true
+			colorPop.Visible = true
+			colorScale.Scale = 0
+			tween(colorScale, 0.34, { Scale = 1 }, Enum.EasingStyle.Back)
+		end)
+		table.insert(searchable, { Name = (o.Text or "colour"):lower(), Object = row })
+		return {
+			Frame = row,
+			Get = function() return current end,
+			Set = function(_, col) apply(col, true) end,
+		}
+	end
+
+	local function keybindRow(parent, order, o)
+		local row = create("Frame", {
+			Size = UDim2.new(1, 0, 0, 34),
+			BackgroundTransparency = 1,
+			LayoutOrder = order,
+			Parent = parent,
+		})
+		create("TextLabel", {
+			Size = UDim2.new(1, -110, 1, 0),
+			BackgroundTransparency = 1,
+			Text = o.Text or "Keybind",
+			TextColor3 = C.Text,
+			TextSize = 15,
+			FontFace = Medium,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			Parent = row,
+		})
+		local keyLabel = create("TextLabel", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -34, 0.5, 0),
+			Size = UDim2.fromOffset(70, 20),
+			BackgroundTransparency = 1,
+			Text = "[None]",
+			TextColor3 = C.Muted,
+			TextSize = 13,
+			FontFace = Medium,
+			TextXAlignment = Enum.TextXAlignment.Right,
+			Parent = row,
+		})
+		local gear = create("TextButton", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, 0, 0.5, 0),
+			Size = UDim2.fromOffset(26, 26),
+			BackgroundColor3 = C.Control,
+			BorderSizePixel = 0,
+			Text = "",
+			AutoButtonColor = false,
+			Parent = row,
+		}, { corner(8), stroke(C.Line) })
+		local gearIcon = create("ImageLabel", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(15, 15),
+			BackgroundTransparency = 1,
+			Image = Icons.Settings,
+			ImageColor3 = C.Muted,
+			Parent = gear,
+		})
+		local gearPop = create("UIScale", { Scale = 1, Parent = gear })
+		gear.MouseEnter:Connect(function()
+			tween(gear, 0.15, { BackgroundColor3 = C.PanelHover })
+			tween(gearIcon, 0.15, { ImageColor3 = C.Accent })
+			tween(gearPop, 0.2, { Scale = 1.1 }, Enum.EasingStyle.Back)
+		end)
+		gear.MouseLeave:Connect(function()
+			tween(gear, 0.15, { BackgroundColor3 = C.Control })
+			tween(gearIcon, 0.15, { ImageColor3 = C.Muted })
+			tween(gearPop, 0.2, { Scale = 1 })
+		end)
+
+		local entry = {
+			key = nil,
+			mode = o.Mode or "Toggle",
+			name = o.ListName or o.Text or "Keybind",
+			standalone = true,
+			isOn = o.GetActive or function() return false end,
+		}
+		local function syncLabel()
+			keyLabel.Text = entry.key and ("[" .. entry.key.Name .. "]") or "[None]"
+			if o.Flag then flags[o.Flag] = entry.key and entry.key.Name or nil end
+		end
+		entry.onChanged = function()
+			syncLabel()
+			if o.Callback then task.spawn(o.Callback, entry.key, entry.mode) end
+		end
+		entry.flip = function()
+			if o.Pressed then task.spawn(o.Pressed, true) end
+		end
+		entry.setState = function(on)
+			if o.Pressed then task.spawn(o.Pressed, on) end
+		end
+		if o.Default then
+			local ok, kc = pcall(function() return Enum.KeyCode[o.Default] end)
+			if ok then entry.key = kc end
+		end
+		syncLabel()
+		if o.List ~= false then table.insert(keybinds, entry) end
+
+		gear.MouseButton1Click:Connect(function()
+			haptic(0.1)
+			promptKeybind(gear, entry)
+		end)
+		table.insert(searchable, { Name = (o.Text or "keybind"):lower(), Object = row })
+		return {
+			Frame = row,
+			Entry = entry,
+			Get = function() return entry.key end,
+			Set = function(_, k)
+				if type(k) == "string" then
+					local ok, kc = pcall(function() return Enum.KeyCode[k] end)
+					entry.key = ok and kc or nil
+				else
+					entry.key = k
+				end
+				syncLabel()
+				if refreshKeybindHud then refreshKeybindHud() end
 			end,
 		}
 	end
@@ -1493,7 +2086,7 @@ function VelUI:CreateWindow(opts)
 			Position = UDim2.fromOffset(64, 33),
 			Size = UDim2.new(1, -80, 0, 18),
 			BackgroundTransparency = 1,
-			Text = opts.PlayerTag or "PREMIUM",
+			Text = opts.PlayerTag or "Premium",
 			TextColor3 = C.Muted,
 			TextSize = 10,
 			FontFace = SemiBold,
@@ -1742,11 +2335,103 @@ function VelUI:CreateWindow(opts)
 		end)
 	end
 
+	local notifyHolder = create("Frame", {
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -18, 1, -18),
+		Size = UDim2.fromOffset(290, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		Parent = gui,
+	}, {
+		create("UIListLayout", {
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			VerticalAlignment = Enum.VerticalAlignment.Bottom,
+			Padding = UDim.new(0, 8),
+		}),
+	})
+
+	local function notify(o)
+		o = o or {}
+		local card = create("Frame", {
+			Size = UDim2.new(1, 0, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			BackgroundColor3 = C.Panel,
+			BorderSizePixel = 0,
+			Parent = notifyHolder,
+		}, {
+			corner(13),
+			create("UIStroke", {
+				Color = C.Line,
+				Thickness = 1,
+				Transparency = 0.35,
+				ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			}),
+			create("UIPadding", {
+				PaddingTop = UDim.new(0, 11), PaddingBottom = UDim.new(0, 11),
+				PaddingLeft = UDim.new(0, 13), PaddingRight = UDim.new(0, 13),
+			}),
+			create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 3) }),
+		})
+		create("Frame", {
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, -13, 0.5, 0),
+			Size = UDim2.new(0, 3, 1, -18),
+			BackgroundColor3 = C.Accent,
+			BorderSizePixel = 0,
+			Parent = card,
+		}, { corner(2) })
+		create("TextLabel", {
+			Size = UDim2.new(1, 0, 0, 20),
+			BackgroundTransparency = 1,
+			Text = o.Title or "Notification",
+			TextColor3 = C.Text,
+			TextSize = 15,
+			FontFace = Bold,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			LayoutOrder = 1,
+			Parent = card,
+		})
+		if o.Content and o.Content ~= "" then
+			create("TextLabel", {
+				Size = UDim2.new(1, 0, 0, 0),
+				AutomaticSize = Enum.AutomaticSize.Y,
+				BackgroundTransparency = 1,
+				Text = o.Content,
+				TextColor3 = C.Muted,
+				TextSize = 13,
+				FontFace = Medium,
+				TextWrapped = true,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextYAlignment = Enum.TextYAlignment.Top,
+				LayoutOrder = 2,
+				Parent = card,
+			})
+		end
+		local cardScale = create("UIScale", { Scale = 0.85, Parent = card })
+		tween(cardScale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+		task.delay(tonumber(o.Duration) or 4, function()
+			tween(cardScale, 0.22, { Scale = 0.9 }, Enum.EasingStyle.Quart)
+			for _, obj in ipairs(card:GetDescendants()) do
+				local props = fadeProps[obj.ClassName]
+				if props then
+					local goal = {}
+					for _, p in ipairs(props) do goal[p] = 1 end
+					tween(obj, 0.22, goal, Enum.EasingStyle.Sine)
+				end
+			end
+			tween(card, 0.22, { BackgroundTransparency = 1 }, Enum.EasingStyle.Sine).Completed:Once(function()
+				card:Destroy()
+			end)
+		end)
+		return card
+	end
+
 	local Window = {
 		Gui = gui,
 		Root = window,
 		Theme = C,
 		Icons = Icons,
+		Flags = flags,
 	}
 
 	local function buildSection(column, heading, description, iconAsset)
@@ -1759,7 +2444,7 @@ function VelUI:CreateWindow(opts)
 		end
 		function Section:AddToggle(o)
 			order += 1
-			return toggle(holder, o.Text or "Toggle", o.Description or "", o.Default, o.Style or "switch", order, o.Keybind or false, o.Callback)
+			return toggle(holder, o.Text or "Toggle", o.Description or "", o.Default, o.Style or "switch", order, o.Keybind or false, o.Callback, o.Flag)
 		end
 		function Section:AddButton(o)
 			order += 1
@@ -1772,6 +2457,35 @@ function VelUI:CreateWindow(opts)
 		function Section:AddDropdown(o)
 			order += 1
 			return dropdown(holder, order, o)
+		end
+		function Section:AddLabel(o)
+			order += 1
+			return label(holder, order, type(o) == "table" and o or { Text = tostring(o) })
+		end
+		function Section:AddParagraph(o)
+			o = o or {}
+			local res = {}
+			if o.Title then
+				order += 1
+				res.Title = label(holder, order, { Text = o.Title, Bold = true })
+			end
+			if o.Content then
+				order += 1
+				res.Content = label(holder, order, { Text = o.Content, Muted = true })
+			end
+			return res
+		end
+		function Section:AddTextbox(o)
+			order += 1
+			return textbox(holder, order, o or {})
+		end
+		function Section:AddColorpicker(o)
+			order += 1
+			return colorpicker(holder, order, o or {})
+		end
+		function Section:AddKeybind(o)
+			order += 1
+			return keybindRow(holder, order, o or {})
 		end
 		return Section
 	end
@@ -1816,9 +2530,41 @@ function VelUI:CreateWindow(opts)
 	function Window:SetOpen(v) setOpen(v and true or false) end
 	function Window:Toggle() setOpen(not isMenuOpen) end
 	function Window:IsOpen() return isMenuOpen end
+	function Window:Notify(o) return notify(o) end
+	function Window:GetFonts()
+		local names = {}
+		for name in pairs(Fonts) do names[#names + 1] = name end
+		table.sort(names)
+		return names
+	end
+	function Window:SetKeybindPanelEnabled(on)
+		keybindPanelEnabled = on and true or false
+		if refreshKeybindHud then refreshKeybindHud() end
+	end
+	function Window:SetAnimationsEnabled(on)
+		animationsEnabled = on and true or false
+	end
+	function Window:AddKeybindEntry(o)
+		o = o or {}
+		local entry = {
+			key = nil,
+			mode = o.Mode or "Toggle",
+			name = o.Name or "Keybind",
+			external = true,
+			getKey = o.GetKey,
+			isOn = o.GetActive or o.GetEnabled or function() return false end,
+			getMode = o.GetMode,
+			flip = function() end,
+			setState = function() end,
+		}
+		table.insert(keybinds, entry)
+		if refreshKeybindHud then refreshKeybindHud() end
+		return entry
+	end
 	function Window:Destroy()
 		gui:Destroy()
 	end
+	Window.Unload = Window.Destroy
 
 	window.Size = UDim2.fromOffset(math.floor(WIN_W * 0.92), math.floor(WIN_H * 0.87))
 	window.Position = UDim2.fromScale(0.5, 0.53)
