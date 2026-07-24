@@ -480,6 +480,7 @@ function VelUI:CreateWindow(opts)
 			tween(data.Button, 0.2, { BackgroundColor3 = selected and C.Control or C.Sidebar })
 			tween(data.Icon, 0.2, { ImageColor3 = selected and C.Accent or C.Muted })
 			tween(data.Label, 0.2, { TextColor3 = selected and C.Text or C.Muted })
+			tween(data.Indicator, 0.3, { Size = UDim2.fromOffset(3, selected and 20 or 0) }, Enum.EasingStyle.Back)
 		end
 		activePage = name
 		title.Text = name
@@ -520,7 +521,16 @@ function VelUI:CreateWindow(opts)
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Parent = btn,
 		})
-		tabButtons[name] = { Button = btn, Icon = icon, Label = label }
+		local indicator = create("Frame", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -12, 0.5, 0),
+			Size = UDim2.fromOffset(3, 0),
+			BackgroundColor3 = C.Accent,
+			BorderSizePixel = 0,
+			Parent = btn,
+		}, { corner(2) })
+		table.insert(accentListeners, function(color) indicator.BackgroundColor3 = color end)
+		tabButtons[name] = { Button = btn, Icon = icon, Label = label, Indicator = indicator }
 		btn.MouseButton1Click:Connect(function()
 			haptic(0.12)
 			selectPage(name)
