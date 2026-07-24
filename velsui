@@ -1936,6 +1936,134 @@ function VelUI:CreateWindow(opts)
 		}
 	end
 
+	local function colorToggle(parent, order, o)
+		local enabled = o.Default and true or false
+		local current = o.Color or Color3.new(1, 1, 1)
+		local row = create("TextButton", {
+			Size = UDim2.new(1, 0, 0, 51),
+			BackgroundTransparency = 1,
+			Text = "",
+			AutoButtonColor = false,
+			LayoutOrder = order,
+			Parent = parent,
+		})
+		create("TextLabel", {
+			Size = UDim2.new(1, -96, 0, 24),
+			BackgroundTransparency = 1,
+			Text = o.Text or "ESP",
+			TextColor3 = C.Text,
+			TextSize = 17,
+			FontFace = Medium,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			Parent = row,
+		})
+		create("TextLabel", {
+			Position = UDim2.fromOffset(0, 26),
+			Size = UDim2.new(1, -96, 0, 20),
+			BackgroundTransparency = 1,
+			Text = o.Description or "",
+			TextColor3 = C.Muted,
+			TextSize = 14,
+			FontFace = Medium,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			Parent = row,
+		})
+
+		local control = create("Frame", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, 0, 0.5, 0),
+			Size = UDim2.fromOffset(43, 25),
+			BackgroundColor3 = enabled and C.Accent or C.Control,
+			BorderSizePixel = 0,
+			Parent = row,
+		}, { corner(13) })
+		local mark = create("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = enabled and UDim2.new(1, -13, 0.5, 0) or UDim2.new(0, 13, 0.5, 0),
+			Size = UDim2.fromOffset(19, 19),
+			BackgroundColor3 = C.Text,
+			BorderSizePixel = 0,
+			Parent = control,
+		}, { corner(10) })
+		table.insert(accentListeners, function(color)
+			if enabled then control.BackgroundColor3 = color end
+		end)
+
+		local swatch = create("TextButton", {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -57, 0.5, 0),
+			Size = UDim2.fromOffset(26, 26),
+			BackgroundColor3 = current,
+			BorderSizePixel = 0,
+			Text = "",
+			AutoButtonColor = false,
+			Parent = row,
+		}, { corner(8), stroke(C.Line) })
+		local swatchPop = create("UIScale", { Scale = 1, Parent = swatch })
+
+		local function applyColor(col, fire)
+			current = col
+			swatch.BackgroundColor3 = col
+			if o.ColorFlag then flags[o.ColorFlag] = col end
+			if fire ~= false and o.ColorCallback then task.spawn(o.ColorCallback, col) end
+		end
+
+		swatch.MouseEnter:Connect(function()
+			tween(swatchPop, 0.2, { Scale = 1.12 }, Enum.EasingStyle.Back)
+		end)
+		swatch.MouseLeave:Connect(function()
+			tween(swatchPop, 0.2, { Scale = 1 })
+		end)
+		swatch.MouseButton1Click:Connect(function()
+			haptic(0.1)
+			if colorState.open and colorState.owner == swatch then
+				hideColor()
+				return
+			end
+			colorState.owner = swatch
+			colorState.h, colorState.s, colorState.v = current:ToHSV()
+			colorState.apply = function(col) applyColor(col, true) end
+			refreshColorPop()
+			local rel = swatch.AbsolutePosition - window.AbsolutePosition
+			colorPop.Position = UDim2.fromOffset(rel.X + swatch.AbsoluteSize.X, rel.Y + swatch.AbsoluteSize.Y + 6)
+			colorState.open = true
+			colorShade.Visible = true
+			colorPop.Visible = true
+			colorScale.Scale = 0
+			tween(colorScale, 0.34, { Scale = 1 }, Enum.EasingStyle.Back)
+		end)
+
+		local function flip()
+			enabled = not enabled
+			tween(control, 0.2, { BackgroundColor3 = enabled and C.Accent or C.Control })
+			tween(mark, 0.25, {
+				Position = enabled and UDim2.new(1, -13, 0.5, 0) or UDim2.new(0, 13, 0.5, 0),
+			}, Enum.EasingStyle.Back)
+			if o.Flag then flags[o.Flag] = enabled end
+			if o.Callback then task.spawn(o.Callback, enabled) end
+		end
+
+		row.MouseButton1Click:Connect(function()
+			haptic(0.16)
+			flip()
+		end)
+
+		if o.Flag then flags[o.Flag] = enabled end
+		if o.ColorFlag then flags[o.ColorFlag] = current end
+		table.insert(searchable, { Name = ((o.Text or "esp") .. " " .. (o.Description or "")):lower(), Object = row })
+		return {
+			Frame = row,
+			Get = function() return enabled end,
+			Set = function(_, on)
+				if (on and true or false) ~= enabled then flip() end
+			end,
+			GetColor = function() return current end,
+			SetColor = function(_, col) applyColor(col, true) end,
+			Flip = flip,
+		}
+	end
+
 	local function keybindRow(parent, order, o)
 		local row = create("Frame", {
 			Size = UDim2.new(1, 0, 0, 34),
@@ -2482,6 +2610,10 @@ function VelUI:CreateWindow(opts)
 		function Section:AddColorpicker(o)
 			order += 1
 			return colorpicker(holder, order, o or {})
+		end
+		function Section:AddColorToggle(o)
+			order += 1
+			return colorToggle(holder, order, o or {})
 		end
 		function Section:AddKeybind(o)
 			order += 1
